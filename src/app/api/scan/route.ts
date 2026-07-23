@@ -1,0 +1,9 @@
+import { NextResponse } from 'next/server';import { prisma } from '@/lib/prisma';
+export async function GET(req:Request){const q=new URL(req.url).searchParams.get('q')?.trim()||'';
+ let sku=await prisma.sku.findUnique({where:{internalCode:q},include:{product:true}});let matched='公司内部编码';
+ if(!sku){const ext=await prisma.externalCode.findUnique({where:{value:q},include:{sku:{include:{product:true}}}});if(ext){sku=ext.sku;matched=ext.label||ext.type}}
+ if(sku)return NextResponse.json({kind:'sku',product:{id:sku.product.id,name:sku.product.name,brand:sku.product.brand,status:sku.product.status},sku:{internalCode:sku.internalCode,spec:sku.spec,status:sku.status},matched});
+ const cainiaoProduct=await prisma.product.findUnique({where:{cainiaoCode:q},include:{skus:true}});if(cainiaoProduct){const activeSkus=cainiaoProduct.skus.filter(s=>s.status==='ACTIVE');if(activeSkus.length===1){const only=activeSkus[0];return NextResponse.json({kind:'sku',product:{id:cainiaoProduct.id,name:cainiaoProduct.name,brand:cainiaoProduct.brand,status:cainiaoProduct.status},sku:{internalCode:only.internalCode,spec:only.spec,status:only.status},matched:'商品级菜鸟云仓编码'});}return NextResponse.json({kind:'product',matches:[{listing:{channel:'菜鸟云仓',shop:null,productExternalId:q,status:cainiaoProduct.status},product:{id:cainiaoProduct.id,name:cainiaoProduct.name,brand:cainiaoProduct.brand,status:cainiaoProduct.status},skuCount:cainiaoProduct.skus.length}]});}
+ const listings=await prisma.channelListing.findMany({where:{productExternalId:q},include:{product:{include:{skus:true}}}});
+ if(listings.length)return NextResponse.json({kind:'product',matches:listings.map(l=>({listing:{channel:l.channel,shop:l.shop,productExternalId:l.productExternalId,status:l.status},product:{id:l.product.id,name:l.product.name,brand:l.product.brand,status:l.product.status},skuCount:l.product.skus.length}))});
+ return NextResponse.json({error:'not found'},{status:404});}
