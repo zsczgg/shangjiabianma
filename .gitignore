@@ -11,6 +11,8 @@ node_modules/
 *.tsbuildinfo
 docs/audit/
 design-qa.md
+data/
+backups/
 dashboard.png
 edit-product.png
 multi-platform.png
