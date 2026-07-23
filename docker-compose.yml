@@ -1,0 +1,38 @@
+services:
+  app:
+    build:
+      context: .
+    container_name: shangjiabianma-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/data/shangjiabianma.db
+      NODE_ENV: production
+    volumes:
+      - ./data:/data
+    ports:
+      - "127.0.0.1:3210:3210"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3210').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backup:
+    image: alpine:3.20
+    container_name: shangjiabianma-backup
+    restart: unless-stopped
+    environment:
+      DATABASE_PATH: /data/shangjiabianma.db
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_SECONDS: "21600"
+      BACKUP_RETENTION_DAYS: "30"
+    volumes:
+      - ./data:/data:ro
+      - ./backups:/backups
+      - ./scripts/backup-loop.sh:/usr/local/bin/backup-loop.sh:ro
+    command: ["/bin/sh", "-c", "apk add --no-cache sqlite tzdata && exec /bin/sh /usr/local/bin/backup-loop.sh"]
+    depends_on:
+      app:
+        condition: service_healthy
+
