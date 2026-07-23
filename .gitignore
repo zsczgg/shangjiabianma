@@ -13,6 +13,7 @@ docs/audit/
 design-qa.md
 data/
 backups/
+.offline-runtime/
 dashboard.png
 edit-product.png
 multi-platform.png
