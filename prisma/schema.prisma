@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Sequence {
+  key   String @id
+  value Int    @default(0)
+}
+model Product {
+  id String @id @default(cuid())
+  name String
+  brand String?
+  category String?
+  status String @default("ACTIVE")
+  note String?
+  cainiaoCode String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  skus Sku[]
+  listings ChannelListing[]
+  changes ChangeLog[]
+}
+
+model ChangeLog {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  skuId     String?
+  field     String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+}
+model Sku {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Cascade)
+  internalCode String @unique
+  spec String
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  externalCodes ExternalCode[]
+  channelMappings ChannelSkuMapping[]
+}
+model ExternalCode {
+  id String @id @default(cuid())
+  skuId String
+  sku Sku @relation(fields:[skuId], references:[id], onDelete:Cascade)
+  type String
+  value String @unique
+  label String?
+}
+model ChannelListing {
+  id String @id @default(cuid())
+  productId String
+  product Product @relation(fields:[productId], references:[id], onDelete:Cascade)
+  channel String
+  shop String?
+  productExternalId String
+  status String @default("ACTIVE")
+  skuMappings ChannelSkuMapping[]
+  @@unique([channel, shop, productExternalId])
+}
+model ChannelSkuMapping {
+  id String @id @default(cuid())
+  listingId String
+  listing ChannelListing @relation(fields:[listingId], references:[id], onDelete:Cascade)
+  skuId String
+  sku Sku @relation(fields:[skuId], references:[id], onDelete:Cascade)
+  externalSkuId String?
+  merchantCode String?
+  @@unique([listingId, skuId])
+}
