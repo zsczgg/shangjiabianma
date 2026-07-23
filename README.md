@@ -37,3 +37,19 @@ npm run dev
 npm test
 npm run build
 ```
+
+## Docker 部署
+
+```bash
+docker compose up -d --build
+```
+
+应用只发布到服务器本机的 `127.0.0.1:3210`，不会直接开放公网端口。SQLite 数据库存放在 `./data/shangjiabianma.db`，备份服务每 6 小时生成一次一致性备份并保存在 `./backups/`，默认保留 30 天。
+
+如需通过 Tailscale 私网访问，可在服务器安装并加入 Tailnet 后执行：
+
+```bash
+tailscale serve --bg 3210
+```
+
+不要启用 `tailscale funnel`，它会将服务公开到互联网。
