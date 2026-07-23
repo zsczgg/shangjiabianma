@@ -44,9 +44,9 @@ npm run build
 docker compose up -d --build
 ```
 
-应用容器只发布到服务器本机的 `127.0.0.1:3210`，再由 OpenResty 反向代理到公网 80 端口。SQLite 数据库存放在 `./data/shangjiabianma.db`，备份服务每 6 小时生成一次一致性备份并保存在 `./backups/`，默认保留 30 天。
+应用容器发布到独立端口 `3210`，不占用服务器的 80 默认端口。SQLite 数据库存放在 `./data/shangjiabianma.db`，备份服务每 6 小时生成一次一致性备份并保存在 `./backups/`，默认保留 30 天。
 
-当前服务器使用 `deploy/openresty-ip.conf` 通过服务器 IP 提供访问。以后绑定域名时，应将其中的 `server_name` 改成正式域名并配置 HTTPS。
+当前访问格式为 `http://服务器IP:3210`。以后绑定域名时，可单独配置反向代理和 HTTPS。
 
 如以后需要改为 Tailscale 私网访问，可在服务器安装并加入 Tailnet 后执行：
 
