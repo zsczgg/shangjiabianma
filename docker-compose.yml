@@ -8,7 +8,7 @@ services:
       DATABASE_URL: file:/data/shangjiabianma.db
       NODE_ENV: production
     volumes:
-      - ./data:/data
+      - ${DATA_DIR:-./data}:/data
     ports:
       - "127.0.0.1:3210:3210"
     healthcheck:
@@ -28,11 +28,10 @@ services:
       BACKUP_INTERVAL_SECONDS: "21600"
       BACKUP_RETENTION_DAYS: "30"
     volumes:
-      - ./data:/data:ro
-      - ./backups:/backups
+      - ${DATA_DIR:-./data}:/data:ro
+      - ${BACKUP_DIR:-./backups}:/backups
       - ./scripts/backup-loop.sh:/usr/local/bin/backup-loop.sh:ro
     command: ["/bin/sh", "-c", "apk add --no-cache sqlite tzdata && exec /bin/sh /usr/local/bin/backup-loop.sh"]
     depends_on:
       app:
         condition: service_healthy
-
