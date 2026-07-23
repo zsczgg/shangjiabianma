@@ -1,0 +1,17 @@
+import Link from 'next/link';
+import { getCatalog } from '@/lib/catalog';
+import DashboardScan from '@/components/dashboard-scan';
+import Barcode from '@/components/barcode';
+import { IconBox,IconBarcode,IconArrowsShuffle,IconBuildingStore,IconPlus } from '@tabler/icons-react';
+import { prisma } from '@/lib/prisma';
+import { formatInternalCode, MAX_SEQUENCE } from '@/lib/internal-code';
+export const dynamic='force-dynamic';
+
+export default async function Dashboard(){
+ const products=await getCatalog();const skus=products.flatMap(p=>p.skus);const codes=skus.flatMap(s=>s.externalCodes);const sequence=await prisma.sequence.findUnique({where:{key:'sku'}});const nextValue=(sequence?.value??0)+1;const nextCode=nextValue<=MAX_SEQUENCE?formatInternalCode(nextValue):'编码已用尽';
+ const stats=[['商品信息',products.length,'SPU 总数',IconBox],['库存规格',skus.length,'独立 SKU',IconBarcode],['外部编码映射',codes.length,'厂家 / 仓库',IconArrowsShuffle],['平台商品',products.reduce((n,p)=>n+p.listings.length,0),'已建立关系',IconBuildingStore]] as const;
+ return <div className="page dashboard"><div className="top-grid"><DashboardScan/><div className="next-code"><span>下一个内部编码</span><strong>{nextCode}</strong><small>系统自动分配，不可修改</small></div></div>
+ <section><div className="section-heading"><div><span className="eyebrow">OVERVIEW</span><h1>当前总览</h1></div></div><div className="stats">{stats.map(([name,num,note,Icon])=><div className="stat" key={name}><Icon/><div><span>{name}</span><strong>{num}</strong><em>{note}</em></div></div>)}</div></section>
+ <section><div className="section-heading"><div><span className="eyebrow">RECENT CATALOG</span><h2>最近商品信息</h2><p>最近维护的商品与编码关系</p></div><Link className="primary" href="/products/new"><IconPlus/> 新建商品</Link></div><div className="card"><table className="table"><thead><tr><th>商品</th><th>规格数</th><th>内部编码</th><th>平台</th><th>状态</th></tr></thead><tbody>{products.map(p=><tr key={p.id}><td><Link href={`/products/${p.id}`}>{p.name}</Link><small>{p.brand||'未设置品牌'} · {p.category||'未分类'}</small></td><td>{p.skus.length} 个</td><td><span className="code">{p.skus[0]?.internalCode}</span>{p.skus.length>1&&<span className="more">+{p.skus.length-1}</span>}</td><td>{p.listings.length?p.listings.map(x=><span className="tag" key={x.id}>{x.channel}</span>):'—'}</td><td><span className={p.status==='ACTIVE'?'status-dot active':'status-dot'}>{p.status==='ACTIVE'?'使用中':'已停用'}</span></td></tr>)}</tbody></table></div></section>
+ <section><div className="section-heading"><div><span className="eyebrow">IDENTITY INDEX</span><h2>内部编码清单</h2><p>每个规格与厂家、仓库和平台编码的对应关系</p></div></div><div className="card"><table className="table identity-table"><thead><tr><th>内部编码</th><th>规格</th><th>所属商品</th><th>厂家条码</th><th>平台商品编码</th><th>状态</th></tr></thead><tbody>{products.flatMap(p=>p.skus.map(s=>{const maker=s.externalCodes.find(c=>c.type==='BARCODE');const platform=p.listings[0];return <tr key={s.id}><td><Link href={`/products/${p.id}`}><span className="code">{s.internalCode}</span></Link></td><td>{s.spec}</td><td>{p.name}</td><td>{maker?<div className="mini-code"><span>{maker.value}</span><Barcode value={maker.value}/></div>:'—'}</td><td>{platform?<div className="mini-code"><span>{platform.productExternalId}</span><Barcode value={platform.productExternalId}/></div>:'—'}</td><td><span className={s.status==='ACTIVE'?'status-dot active':'status-dot'}>{s.status==='ACTIVE'?'使用中':'已停用'}</span></td></tr>}))}</tbody></table></div></section></div>
+}
