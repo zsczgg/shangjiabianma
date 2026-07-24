@@ -5,11 +5,11 @@ import { z } from 'zod';
 
 const status=z.enum(['ACTIVE','INACTIVE']);
 const updateSchema=z.object({
-  name:z.string().min(1),brand:z.string().nullable(),category:z.string().nullable(),note:z.string().nullable(),cainiaoCode:z.string().nullable(),status,
+  name:z.string().min(1),brand:z.string().nullable(),category:z.string().nullable(),imageUrl:z.string().nullable(),note:z.string().nullable(),cainiaoCode:z.string().nullable(),status,
   skus:z.array(z.object({id:z.string().optional(),spec:z.string().min(1),barcode:z.string(),cainiao:z.string(),status})).min(1),
   listings:z.array(z.object({id:z.string().optional(),channel:z.enum(['淘宝','闲鱼','小红书','其他']),shop:z.string(),productExternalId:z.string().min(1),status}))
 }).strict();
-const labels:Record<string,string>={name:'商品名称',brand:'品牌',category:'分类',note:'备注',cainiaoCode:'商品级菜鸟云仓编码',status:'状态',spec:'规格名称',barcode:'厂家条码',cainiao:'菜鸟货品编码'};
+const labels:Record<string,string>={name:'商品名称',brand:'品牌',category:'分类',imageUrl:'商品图片',note:'备注',cainiaoCode:'商品级菜鸟云仓编码',status:'状态',spec:'规格名称',barcode:'厂家条码',cainiao:'菜鸟货品编码'};
 const val=(v:string|null|undefined)=>v||null;
 
 export async function PUT(req:Request,{params}:{params:{id:string}}){try{
@@ -20,8 +20,8 @@ export async function PUT(req:Request,{params}:{params:{id:string}}){try{
   const createdCodes:string[]=[];
   await prisma.$transaction(async tx=>{
     const changes:{productId:string;skuId?:string;field:string;oldValue:string|null;newValue:string|null}[]=[];
-    for(const field of ['name','brand','category','note','cainiaoCode','status'] as const)if(val(current[field])!==val(data[field]))changes.push({productId:current.id,field:labels[field],oldValue:val(current[field]),newValue:val(data[field])});
-    await tx.product.update({where:{id:current.id},data:{name:data.name,brand:data.brand,category:data.category,note:data.note,cainiaoCode:productCode,status:data.status}});
+    for(const field of ['name','brand','category','imageUrl','note','cainiaoCode','status'] as const)if(val(current[field])!==val(data[field]))changes.push({productId:current.id,field:labels[field],oldValue:val(current[field]),newValue:val(data[field])});
+    await tx.product.update({where:{id:current.id},data:{name:data.name,brand:data.brand,category:data.category,imageUrl:val(data.imageUrl),note:data.note,cainiaoCode:productCode,status:data.status}});
     for(const incoming of data.skus){
       if(!incoming.id){
         const internalCode=await allocateInternalCode(tx);

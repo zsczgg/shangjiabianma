@@ -13,6 +13,7 @@ const schema = z.object({
   name: z.string().min(1),
   brand: z.string().optional(),
   category: z.string().optional(),
+  imageUrl: z.string().optional(),
   note: z.string().optional(),
   cainiaoCode: z.string().optional(),
   skus: z.array(z.object({
@@ -77,6 +78,7 @@ export async function POST(req: Request) {
           name: data.name,
           brand: data.brand,
           category: data.category,
+          imageUrl: data.imageUrl?.trim() || null,
           note: data.note,
           cainiaoCode: productCode,
           skus: { create: skuData },

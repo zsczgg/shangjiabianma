@@ -16,6 +16,7 @@ model Product {
   name String
   brand String?
   category String?
+  imageUrl String?
   status String @default("ACTIVE")
   note String?
   cainiaoCode String? @unique

@@ -20,3 +20,5 @@ multi-platform.png
 all-barcodes.png
 top-save-cainiao.png
 npm-debug.log*
+.codex-*.png
+.prisma-engines/
