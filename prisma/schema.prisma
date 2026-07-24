@@ -11,6 +11,13 @@ model Sequence {
   key   String @id
   value Int    @default(0)
 }
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 model Product {
   id String @id @default(cuid())
   name String

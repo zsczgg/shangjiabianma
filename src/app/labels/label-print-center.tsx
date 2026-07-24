@@ -22,36 +22,24 @@ import {
   type LabelItem,
   type QueueQuantities,
 } from '@/lib/labels';
+import {
+  DEFAULT_LABEL_SETTINGS,
+  type LabelFieldSettings,
+  type LabelPaperSize,
+  type LabelSettings,
+} from '@/lib/label-settings';
 
-type PaperSize = '70x50' | '100x100';
-type FieldSettings = {
-  productName: boolean;
-  spec: boolean;
-  manufacturer: boolean;
-  cainiao: boolean;
-  platforms: boolean;
-  image: boolean;
-  note: boolean;
-};
-
-const DEFAULT_FIELDS: FieldSettings = {
-  productName: true,
-  spec: true,
-  manufacturer: false,
-  cainiao: false,
-  platforms: false,
-  image: false,
-  note: false,
-};
-
-const fieldLabels: Array<[keyof FieldSettings, string]> = [
+const fieldLabels: Array<[keyof LabelFieldSettings, string]> = [
+  ['brandName', '品牌标识'],
   ['productName', '商品名称'],
   ['spec', '规格'],
+  ['internalCodeText', '内部编码文字'],
+  ['barcodeText', '条码下方编码'],
   ['manufacturer', '厂家条码'],
   ['cainiao', '菜鸟云仓编码'],
   ['platforms', '平台 ID'],
   ['image', '商品图片'],
-  ['note', '自定义备注'],
+  ['note', '备注内容'],
 ];
 
 function clampQuantity(value: number) {
@@ -98,13 +86,15 @@ function ProductLabel({
   item,
   paper,
   fields,
+  brandText,
   customNote,
   calibration,
   print = false,
 }: {
   item: LabelItem;
-  paper: PaperSize;
-  fields: FieldSettings;
+  paper: LabelPaperSize;
+  fields: LabelFieldSettings;
+  brandText: string;
   customNote: string;
   calibration: { x: number; y: number };
   print?: boolean;
@@ -119,8 +109,7 @@ function ProductLabel({
       className={`physical-label label-${paper}${print ? ' print-label' : ''}`}
       style={print ? { transform: `translate(${calibration.x}mm, ${calibration.y}mm)` } : undefined}
     >
-      <div className="label-brand">媛媛和小肥朱</div>
-      <div className="label-rule" />
+      {fields.brandName && <><div className="label-brand">{brandText}</div><div className="label-rule" /></>}
       <div className="label-product-row">
         <div className="label-product-copy">
           {fields.productName && <><span className="label-caption">商品名称</span><strong>{item.productName}</strong></>}
@@ -132,9 +121,8 @@ function ProductLabel({
         )}
       </div>
       <div className="label-primary-code">
-        <span className="label-caption">内部编码</span>
-        <strong>{item.internalCode}</strong>
-        <LabelBarcode value={item.internalCode} />
+        {fields.internalCodeText && <><span className="label-caption">内部编码</span><strong>{item.internalCode}</strong></>}
+        <LabelBarcode value={item.internalCode} showText={fields.barcodeText} />
       </div>
       {(fields.manufacturer && manufacturer || fields.cainiao && cainiao || fields.platforms && item.platformCodes.length > 0) && (
         <div className="label-secondary-codes">
@@ -157,44 +145,86 @@ function ProductLabel({
 export default function LabelPrintCenter({ items, initialSkuId }: { items: LabelItem[]; initialSkuId?: string }) {
   const initialItem = items.find(item => item.skuId === initialSkuId) || items[0];
   const [query, setQuery] = useState('');
-  const [paper, setPaper] = useState<PaperSize>('70x50');
-  const [defaultCopies, setDefaultCopies] = useState(1);
+  const [paper, setPaper] = useState<LabelPaperSize>(DEFAULT_LABEL_SETTINGS.paper);
+  const [defaultCopies, setDefaultCopies] = useState(DEFAULT_LABEL_SETTINGS.defaultCopies);
   const [quantities, setQuantities] = useState<QueueQuantities>(() => initialItem ? { [initialItem.skuId]: 1 } : {});
   const [activeSkuId, setActiveSkuId] = useState(initialItem?.skuId || '');
-  const [fields, setFields] = useState<FieldSettings>(DEFAULT_FIELDS);
-  const [customNote, setCustomNote] = useState('');
-  const [calibration, setCalibration] = useState({ x: 0, y: 0 });
+  const [fields, setFields] = useState<LabelFieldSettings>(DEFAULT_LABEL_SETTINGS.fields);
+  const [brandText, setBrandText] = useState(DEFAULT_LABEL_SETTINGS.brandText);
+  const [customNote, setCustomNote] = useState(DEFAULT_LABEL_SETTINGS.customNote);
+  const [calibration, setCalibration] = useState(DEFAULT_LABEL_SETTINGS.calibration);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('yyhxfz-label-preferences');
-      if (saved) {
-        const parsed = JSON.parse(saved) as {
-          paper?: PaperSize;
-          fields?: Partial<FieldSettings>;
-          calibration?: { x?: number; y?: number };
-        };
-        if (parsed.paper === '70x50' || parsed.paper === '100x100') setPaper(parsed.paper);
-        if (parsed.fields) setFields({ ...DEFAULT_FIELDS, ...parsed.fields });
-        if (parsed.calibration) {
-          setCalibration({
-            x: Number(parsed.calibration.x) || 0,
-            y: Number(parsed.calibration.y) || 0,
-          });
+    async function loadSettings() {
+      let next = DEFAULT_LABEL_SETTINGS;
+      try {
+        const response = await fetch('/api/label-settings', { cache: 'no-store' });
+        if (!response.ok) throw new Error('读取设置失败');
+        const data = await response.json() as { settings: LabelSettings; exists: boolean };
+        next = data.settings;
+        if (!data.exists) {
+          const local = localStorage.getItem('yyhxfz-label-preferences');
+          if (local) {
+            const parsed = JSON.parse(local) as Partial<LabelSettings>;
+            next = {
+              ...DEFAULT_LABEL_SETTINGS,
+              ...parsed,
+              fields: { ...DEFAULT_LABEL_SETTINGS.fields, ...parsed.fields },
+              calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
+            };
+          }
         }
+      } catch {
+        const local = localStorage.getItem('yyhxfz-label-preferences');
+        if (local) {
+          try {
+            const parsed = JSON.parse(local) as Partial<LabelSettings>;
+            next = {
+              ...DEFAULT_LABEL_SETTINGS,
+              ...parsed,
+              fields: { ...DEFAULT_LABEL_SETTINGS.fields, ...parsed.fields },
+              calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
+            };
+          } catch {
+            next = DEFAULT_LABEL_SETTINGS;
+          }
+        }
+      } finally {
+        setPaper(next.paper);
+        setDefaultCopies(next.defaultCopies);
+        setBrandText(next.brandText);
+        setCustomNote(next.customNote);
+        setFields(next.fields);
+        setCalibration(next.calibration);
+        setPreferencesLoaded(true);
+        setSaveStatus('saved');
       }
-    } catch {
-      // A corrupt local preference should never block printing.
-    } finally {
-      setPreferencesLoaded(true);
     }
+    void loadSettings();
   }, []);
 
   useEffect(() => {
     if (!preferencesLoaded) return;
-    localStorage.setItem('yyhxfz-label-preferences', JSON.stringify({ paper, fields, calibration }));
-  }, [calibration, fields, paper, preferencesLoaded]);
+    setSaveStatus('saving');
+    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, fields, calibration };
+    const timer = window.setTimeout(async () => {
+      localStorage.setItem('yyhxfz-label-preferences', JSON.stringify(settings));
+      try {
+        const response = await fetch('/api/label-settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settings),
+        });
+        if (!response.ok) throw new Error('保存失败');
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('error');
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [brandText, calibration, customNote, defaultCopies, fields, paper, preferencesLoaded]);
 
   const filteredItems = useMemo(() => items.filter(item => labelMatchesQuery(item, query)), [items, query]);
   const queuedItems = useMemo(() => items.filter(item => (quantities[item.skuId] ?? 0) > 0), [items, quantities]);
@@ -224,10 +254,12 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   }
 
   function resetPreferences() {
-    setPaper('70x50');
-    setFields(DEFAULT_FIELDS);
-    setCalibration({ x: 0, y: 0 });
-    setCustomNote('');
+    setPaper(DEFAULT_LABEL_SETTINGS.paper);
+    setDefaultCopies(DEFAULT_LABEL_SETTINGS.defaultCopies);
+    setBrandText(DEFAULT_LABEL_SETTINGS.brandText);
+    setFields(DEFAULT_LABEL_SETTINGS.fields);
+    setCalibration(DEFAULT_LABEL_SETTINGS.calibration);
+    setCustomNote(DEFAULT_LABEL_SETTINGS.customNote);
   }
 
   function printLabels() {
@@ -363,7 +395,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <div className="ruler ruler-horizontal"><span>0</span><span>{paper === '70x50' ? '35' : '50'}</span><span>{paper === '70x50' ? '70' : '100'} mm</span></div>
             <div className="ruler ruler-vertical"><span>0</span><span>{paper === '70x50' ? '25' : '50'}</span><span>{paper === '70x50' ? '50' : '100'} mm</span></div>
             {activeItem ? (
-              <ProductLabel item={activeItem} paper={paper} fields={fields} customNote={customNote} calibration={calibration} />
+              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} calibration={calibration} />
             ) : (
               <div className="preview-placeholder">从左侧选择一个商品规格</div>
             )}
@@ -376,7 +408,10 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
 
         <aside className="label-settings-panel">
           <div className="panel-heading">
-            <div><b>标签内容配置</b><span>内部编码与主条码固定显示</span></div>
+            <div><b>标签内容配置</b><span>主条码固定显示，其余内容可自定义</span></div>
+            <span className={`settings-save-status ${saveStatus}`}>
+              {saveStatus === 'loading' ? '读取设置…' : saveStatus === 'saving' ? '正在保存…' : saveStatus === 'error' ? '保存失败' : '已保存到数据库'}
+            </span>
           </div>
           <div className="setting-list">
             {fieldLabels.map(([field, label]) => {
@@ -393,6 +428,17 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
                 </label>
               );
             })}
+          </div>
+          <div className="settings-section">
+            <label>品牌标识文字</label>
+            <input
+              type="text"
+              value={brandText}
+              onChange={event => setBrandText(event.target.value.slice(0, 30))}
+              placeholder="例如：媛媛和小肥朱"
+              maxLength={30}
+            />
+            <small>{brandText.length} / 30</small>
           </div>
           <div className="settings-section">
             <label>自定义备注</label>
@@ -439,6 +485,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             item={item}
             paper={paper}
             fields={fields}
+            brandText={brandText}
             customNote={customNote}
             calibration={calibration}
             print
