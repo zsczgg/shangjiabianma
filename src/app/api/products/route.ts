@@ -33,10 +33,10 @@ export async function POST(req: Request) {
     const submittedExternalCodes = [...skuCodes, ...barcodes];
 
     if (productCode && skuCodes.includes(productCode)) {
-      throw new Error('商品级菜鸟编码不能与规格菜鸟编码相同');
+      throw new Error('商品级仓配编码不能与规格仓配编码相同');
     }
     if (new Set(submittedExternalCodes).size !== submittedExternalCodes.length) {
-      throw new Error('同一商品内的厂家条码或菜鸟编码不能重复');
+      throw new Error('同一商品内的厂家条码或仓配编码不能重复');
     }
 
     const product = await prisma.$transaction(async tx => {
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
           tx.product.findUnique({ where: { cainiaoCode: productCode } }),
           tx.externalCode.findUnique({ where: { value: productCode } }),
         ]);
-        if (productOwner || skuOwner) throw new Error('该菜鸟编码已被其他商品或规格使用');
+        if (productOwner || skuOwner) throw new Error('该仓配编码已被其他商品或规格使用');
       }
 
       for (const code of submittedExternalCodes) {
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
           tx.product.findUnique({ where: { cainiaoCode: code } }),
           tx.externalCode.findUnique({ where: { value: code } }),
         ]);
-        if (productOwner || skuOwner) throw new Error('厂家条码或菜鸟编码已被其他商品或规格使用');
+        if (productOwner || skuOwner) throw new Error('厂家条码或仓配编码已被其他商品或规格使用');
       }
 
       const skuData = [];
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
           externalCodes: {
             create: [
               ...(barcode ? [{ type: 'BARCODE', value: barcode, label: '厂家条码' }] : []),
-              ...(cainiao ? [{ type: 'CAINIAO', value: cainiao, label: '菜鸟货品编码' }] : []),
+              ...(cainiao ? [{ type: 'CAINIAO', value: cainiao, label: '仓配编码' }] : []),
             ],
           },
         });

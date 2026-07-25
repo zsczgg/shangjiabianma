@@ -36,7 +36,7 @@ const fieldLabels: Array<[keyof LabelFieldSettings, string]> = [
   ['internalCodeText', '内部编码文字'],
   ['barcodeText', '条码下方编码'],
   ['manufacturer', '厂家条码'],
-  ['cainiao', '菜鸟云仓编码'],
+  ['cainiao', '仓配编码'],
   ['platforms', '平台 ID'],
   ['image', '商品图片'],
   ['note', '备注内容'],
@@ -127,7 +127,7 @@ function ProductLabel({
       {(fields.manufacturer && manufacturer || fields.cainiao && cainiao || fields.platforms && item.platformCodes.length > 0) && (
         <div className="label-secondary-codes">
           {fields.manufacturer && <ExternalBarcode label="厂家条码" value={manufacturer} />}
-          {fields.cainiao && <ExternalBarcode label={skuCainiao ? '菜鸟货品编码' : '菜鸟云仓商品编码'} value={cainiao} />}
+          {fields.cainiao && <ExternalBarcode label="仓配编码" value={cainiao} />}
           {fields.platforms && item.platformCodes.map(code => (
             <ExternalBarcode
               key={`${code.channel}-${code.shop || ''}-${code.value}`}

@@ -13,7 +13,7 @@ const item: LabelItem = {
   note: '夏季新品',
   externalCodes: [
     { type: 'BARCODE', label: '厂家条码', value: '6931234567890' },
-    { type: 'CAINIAO', label: '菜鸟货品编码', value: 'CN-SKU-1' },
+    { type: 'CAINIAO', label: '仓配编码', value: 'CN-SKU-1' },
   ],
   platformCodes: [{ channel: '淘宝', shop: '主店', value: '123456789' }],
 };

@@ -9,14 +9,14 @@ const updateSchema=z.object({
   skus:z.array(z.object({id:z.string().optional(),spec:z.string().min(1),barcode:z.string(),cainiao:z.string(),status})).min(1),
   listings:z.array(z.object({id:z.string().optional(),channel:z.enum(['淘宝','闲鱼','小红书','其他']),shop:z.string(),productExternalId:z.string().min(1),status}))
 }).strict();
-const labels:Record<string,string>={name:'商品名称',brand:'品牌',category:'分类',imageUrl:'商品图片',note:'备注',cainiaoCode:'商品级菜鸟云仓编码',status:'状态',spec:'规格名称',barcode:'厂家条码',cainiao:'菜鸟货品编码'};
+const labels:Record<string,string>={name:'商品名称',brand:'品牌',category:'分类',imageUrl:'商品图片',note:'备注',cainiaoCode:'商品级仓配编码',status:'状态',spec:'规格名称',barcode:'厂家条码',cainiao:'仓配编码'};
 const val=(v:string|null|undefined)=>v||null;
 
 export async function PUT(req:Request,{params}:{params:{id:string}}){try{
   const data=updateSchema.parse(await req.json());
   const current=await prisma.product.findUnique({where:{id:params.id},include:{skus:{include:{externalCodes:true}},listings:true}});
   if(!current)return NextResponse.json({error:'商品不存在'},{status:404});
-  const productCode=data.cainiaoCode?.trim()||null;const skuCodes=data.skus.map(s=>s.cainiao.trim()).filter(Boolean);if(productCode&&skuCodes.includes(productCode))throw new Error('商品级菜鸟编码不能与规格菜鸟编码相同');if(productCode){const ext=await prisma.externalCode.findUnique({where:{value:productCode}});if(ext)throw new Error('该菜鸟编码已被规格使用');}for(const code of skuCodes){const owner=await prisma.product.findUnique({where:{cainiaoCode:code}});if(owner&&owner.id!==current.id)throw new Error('该菜鸟编码已被其他商品使用');}
+  const productCode=data.cainiaoCode?.trim()||null;const skuCodes=data.skus.map(s=>s.cainiao.trim()).filter(Boolean);if(productCode&&skuCodes.includes(productCode))throw new Error('商品级仓配编码不能与规格仓配编码相同');if(productCode){const ext=await prisma.externalCode.findUnique({where:{value:productCode}});if(ext)throw new Error('该仓配编码已被规格使用');}for(const code of skuCodes){const owner=await prisma.product.findUnique({where:{cainiaoCode:code}});if(owner&&owner.id!==current.id)throw new Error('该仓配编码已被其他商品使用');}
   const createdCodes:string[]=[];
   await prisma.$transaction(async tx=>{
     const changes:{productId:string;skuId?:string;field:string;oldValue:string|null;newValue:string|null}[]=[];
@@ -25,7 +25,7 @@ export async function PUT(req:Request,{params}:{params:{id:string}}){try{
     for(const incoming of data.skus){
       if(!incoming.id){
         const internalCode=await allocateInternalCode(tx);
-        const made=await tx.sku.create({data:{productId:current.id,internalCode,spec:incoming.spec,status:'ACTIVE',externalCodes:{create:[...(incoming.barcode?[{type:'BARCODE',value:incoming.barcode,label:'厂家条码'}]:[]),...(incoming.cainiao?[{type:'CAINIAO',value:incoming.cainiao,label:'菜鸟货品编码'}]:[])]}}});
+        const made=await tx.sku.create({data:{productId:current.id,internalCode,spec:incoming.spec,status:'ACTIVE',externalCodes:{create:[...(incoming.barcode?[{type:'BARCODE',value:incoming.barcode,label:'厂家条码'}]:[]),...(incoming.cainiao?[{type:'CAINIAO',value:incoming.cainiao,label:'仓配编码'}]:[])]}}});
         changes.push({productId:current.id,skuId:made.id,field:'新增规格',oldValue:null,newValue:`${incoming.spec} · ${internalCode}`});createdCodes.push(internalCode);continue;
       }
       const old=current.skus.find(s=>s.id===incoming.id);if(!old)throw new Error('规格不属于当前商品');
