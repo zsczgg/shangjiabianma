@@ -143,7 +143,14 @@ function ProductLabel({
           ))}
         </div>
       )}
-      {fields.note && note && <div className="label-note">备注：{note}</div>}
+      {fields.note && note && (
+        <div
+          className={`label-note${note.length > 36 ? ' dense' : ''}${note.length > 50 ? ' ultra-dense' : ''}`}
+        >
+          <span>备注：</span>
+          <span>{note}</span>
+        </div>
+      )}
     </article>
   );
 }
@@ -454,6 +461,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
               onChange={event => setCustomNote(event.target.value)}
               placeholder={activeItem?.note || '例如：仓库货位、活动批次'}
               maxLength={60}
+              wrap="soft"
             />
             <small>{customNote.length} / 60</small>
           </div>
