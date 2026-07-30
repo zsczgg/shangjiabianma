@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const labelSettingsSchema = z.object({
-  paper: z.enum(['70x50', '100x100']),
+  paper: z.enum(['40x30', '70x50', '100x100']),
   defaultCopies: z.number().int().min(1).max(999),
   brandText: z.string().trim().max(30),
   customNote: z.string().max(60),

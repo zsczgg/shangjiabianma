@@ -6,6 +6,13 @@ describe('label settings', () => {
     expect(labelSettingsSchema.parse(DEFAULT_LABEL_SETTINGS)).toEqual(DEFAULT_LABEL_SETTINGS);
   });
 
+  it('accepts the compact 40x30 paper size', () => {
+    expect(labelSettingsSchema.parse({
+      ...DEFAULT_LABEL_SETTINGS,
+      paper: '40x30',
+    }).paper).toBe('40x30');
+  });
+
   it('rejects unsafe calibration', () => {
     expect(() => labelSettingsSchema.parse({
       ...DEFAULT_LABEL_SETTINGS,

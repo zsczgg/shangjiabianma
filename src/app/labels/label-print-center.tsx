@@ -42,6 +42,12 @@ const fieldLabels: Array<[keyof LabelFieldSettings, string]> = [
   ['note', '备注内容'],
 ];
 
+const paperDimensions: Record<LabelPaperSize, { width: number; height: number; label: string }> = {
+  '40x30': { width: 40, height: 30, label: '40 × 30 mm' },
+  '70x50': { width: 70, height: 50, label: '70 × 50 mm' },
+  '100x100': { width: 100, height: 100, label: '100 × 100 mm' },
+};
+
 function clampQuantity(value: number) {
   return Math.min(999, Math.max(0, Math.floor(Number.isFinite(value) ? value : 0)));
 }
@@ -268,8 +274,8 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
     existing?.remove();
     const style = document.createElement('style');
     style.id = 'dynamic-label-page';
-    const dimensions = paper === '70x50' ? '70mm 50mm' : '100mm 100mm';
-    style.textContent = `@page { size: ${dimensions}; margin: 0; }`;
+    const dimensions = paperDimensions[paper];
+    style.textContent = `@page { size: ${dimensions.width}mm ${dimensions.height}mm; margin: 0; }`;
     document.head.appendChild(style);
     document.documentElement.dataset.labelPrinting = 'true';
     const cleanup = () => {
@@ -308,6 +314,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
         <div className="command-group">
           <span>标签规格</span>
           <div className="segmented">
+            <button type="button" className={paper === '40x30' ? 'active' : ''} onClick={() => setPaper('40x30')}>40 × 30 mm</button>
             <button type="button" className={paper === '70x50' ? 'active' : ''} onClick={() => setPaper('70x50')}>70 × 50 mm</button>
             <button type="button" className={paper === '100x100' ? 'active' : ''} onClick={() => setPaper('100x100')}>100 × 100 mm</button>
           </div>
@@ -372,7 +379,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
 
         <section className="label-preview-panel">
           <div className="panel-heading preview-heading">
-            <div><b>标签预览</b><span>{paper === '70x50' ? '70 × 50 mm' : '100 × 100 mm'} · 按真实比例</span></div>
+            <div><b>标签预览</b><span>{paperDimensions[paper].label} · 按真实比例</span></div>
             {queuedItems.length > 1 && (
               <div className="preview-pagination">
                 <button
@@ -392,8 +399,8 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             )}
           </div>
           <div className={`label-stage stage-${paper}`}>
-            <div className="ruler ruler-horizontal"><span>0</span><span>{paper === '70x50' ? '35' : '50'}</span><span>{paper === '70x50' ? '70' : '100'} mm</span></div>
-            <div className="ruler ruler-vertical"><span>0</span><span>{paper === '70x50' ? '25' : '50'}</span><span>{paper === '70x50' ? '50' : '100'} mm</span></div>
+            <div className="ruler ruler-horizontal"><span>0</span><span>{paperDimensions[paper].width / 2}</span><span>{paperDimensions[paper].width} mm</span></div>
+            <div className="ruler ruler-vertical"><span>0</span><span>{paperDimensions[paper].height / 2}</span><span>{paperDimensions[paper].height} mm</span></div>
             {activeItem ? (
               <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} calibration={calibration} />
             ) : (
