@@ -1,0 +1,183 @@
+openapi: 3.1.0
+info:
+  title: 媛媛和小肥朱商品编码 API
+  version: 1.0.0
+  description: 供进销存与库存管理系统只读查询商品、SKU 和编码映射。
+servers:
+  - url: http://47.105.76.89:3210/api/v1
+    description: 当前服务器（建议绑定域名并启用 HTTPS 后替换）
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: 健康检查
+      security: []
+      responses:
+        '200':
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /skus:
+    get:
+      summary: 分页读取 SKU
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, INACTIVE, ALL], default: ACTIVE }
+        - name: query
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: SKU 列表
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Sku' }
+                  meta: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /skus/{internalCode}:
+    get:
+      summary: 按永久内部编码读取 SKU
+      parameters:
+        - name: internalCode
+          in: path
+          required: true
+          schema: { type: string, example: yyhxfz000001 }
+      responses:
+        '200':
+          description: SKU 详情
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data: { $ref: '#/components/schemas/Sku' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /lookup:
+    get:
+      summary: 用任意关联编码反查 SKU
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 匹配结果；商品级编码可能返回多个 SKU
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data, meta]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Sku'
+                        - type: object
+                          required: [matchedBy]
+                          properties:
+                            matchedBy: { type: string }
+                  meta:
+                    type: object
+                    properties:
+                      count: { type: integer }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API-Key
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: API Key 缺失或错误
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: 未找到数据
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    HealthResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success: { const: true }
+        data:
+          type: object
+          required: [status, version, time]
+          properties:
+            status: { const: ok }
+            version: { const: v1 }
+            time: { type: string, format: date-time }
+    Pagination:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        total: { type: integer }
+        totalPages: { type: integer }
+    Sku:
+      type: object
+      required: [skuId, internalCode, spec, status, product, codes, platformMappings]
+      properties:
+        skuId: { type: string }
+        internalCode: { type: string, example: yyhxfz000001 }
+        spec: { type: string }
+        status: { type: string, enum: [ACTIVE, INACTIVE] }
+        warning: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        product:
+          type: object
+          additionalProperties: true
+        codes:
+          type: object
+          additionalProperties: true
+        platformMappings:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success: { const: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
