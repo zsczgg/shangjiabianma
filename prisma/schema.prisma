@@ -24,6 +24,7 @@ model ApiCredential {
   keyHash    String    @unique
   keyPrefix  String
   keySuffix  String
+  encryptedKey String?
   status     String    @default("ACTIVE")
   lastUsedAt DateTime?
   createdAt  DateTime  @default(now())

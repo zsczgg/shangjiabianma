@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateApiKey, hashApiKey, LEGACY_API_KEY_SETTING } from '@/lib/integration-api';
+import { encryptApiKey } from '@/lib/api-key-crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,11 +32,13 @@ export async function GET() {
       createdAt: item.createdAt,
       lastUsedAt: item.lastUsedAt,
       revokedAt: item.revokedAt,
+      revealable: Boolean(item.encryptedKey),
     })),
     legacy: process.env.INTEGRATION_API_KEY ? {
       name: '服务器旧密钥',
       maskedKey: maskedLegacyKey(),
       status: legacySetting?.value === 'false' ? 'INACTIVE' : 'ACTIVE',
+      revealable: true,
     } : null,
   });
 }
@@ -50,6 +53,7 @@ export async function POST(request: NextRequest) {
         keyHash: hashApiKey(apiKey),
         keyPrefix: apiKey.slice(0, 12),
         keySuffix: apiKey.slice(-4),
+        encryptedKey: encryptApiKey(apiKey),
       },
     });
     return NextResponse.json({
