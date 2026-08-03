@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 type Match = { matchedBy: string; sku: IntegrationSku };
 
 export async function GET(request: NextRequest) {
-  const unauthorized = requireIntegrationApiKey(request);
+  const unauthorized = await requireIntegrationApiKey(request);
   if (unauthorized) return unauthorized;
   const code = request.nextUrl.searchParams.get('code')?.trim();
   if (!code) return apiError('CODE_REQUIRED', '必须提供 code 查询参数', 400);

@@ -1,9 +1,11 @@
-import { timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from './prisma';
 
 export const API_VERSION = 'v1';
 export const MAX_PAGE_SIZE = 100;
+export const LEGACY_API_KEY_SETTING = 'legacy-integration-api-key-enabled';
 
 export const integrationSkuInclude = {
   product: { include: { listings: true } },
@@ -13,6 +15,14 @@ export const integrationSkuInclude = {
 
 export type IntegrationSku = Prisma.SkuGetPayload<{ include: typeof integrationSkuInclude }>;
 
+export function generateApiKey() {
+  return `yyapi_${randomBytes(32).toString('base64url')}`;
+}
+
+export function hashApiKey(value: string) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
 export function verifyApiKey(provided: string | null, configured = process.env.INTEGRATION_API_KEY) {
   if (!provided || !configured) return false;
   const left = Buffer.from(provided);
@@ -20,16 +30,31 @@ export function verifyApiKey(provided: string | null, configured = process.env.I
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function requireIntegrationApiKey(request: NextRequest) {
+export async function authenticateIntegrationApiKey(provided: string | null) {
+  if (!provided) return false;
+
+  const credential = await prisma.apiCredential.findUnique({ where: { keyHash: hashApiKey(provided) } });
+  if (credential?.status === 'ACTIVE') {
+    const stale = !credential.lastUsedAt || Date.now() - credential.lastUsedAt.getTime() > 60_000;
+    if (stale) {
+      await prisma.apiCredential.update({ where: { id: credential.id }, data: { lastUsedAt: new Date() } });
+    }
+    return true;
+  }
+
+  const legacy = process.env.INTEGRATION_API_KEY;
+  if (!legacy || !verifyApiKey(provided, legacy)) return false;
+  const setting = await prisma.appSetting.findUnique({ where: { key: LEGACY_API_KEY_SETTING } });
+  return setting?.value !== 'false';
+}
+
+export async function requireIntegrationApiKey(request: NextRequest) {
   const authorization = request.headers.get('authorization');
   const bearer = authorization?.startsWith('Bearer ') ? authorization.slice(7).trim() : null;
   const provided = request.headers.get('x-api-key') || bearer;
 
-  if (!process.env.INTEGRATION_API_KEY) {
-    return apiError('API_NOT_CONFIGURED', '服务器尚未配置进销存 API Key', 503);
-  }
-  if (!verifyApiKey(provided)) {
-    return apiError('UNAUTHORIZED', '缺少或无效的 API Key', 401);
+  if (!await authenticateIntegrationApiKey(provided)) {
+    return apiError('UNAUTHORIZED', '缺少、无效或已经停用的 API Key', 401);
   }
   return null;
 }

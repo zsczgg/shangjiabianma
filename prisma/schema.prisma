@@ -18,6 +18,18 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 }
 
+model ApiCredential {
+  id         String    @id @default(cuid())
+  name       String
+  keyHash    String    @unique
+  keyPrefix  String
+  keySuffix  String
+  status     String    @default("ACTIVE")
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+}
+
 model Product {
   id String @id @default(cuid())
   name String

@@ -13,7 +13,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  const unauthorized = requireIntegrationApiKey(request);
+  const unauthorized = await requireIntegrationApiKey(request);
   if (unauthorized) return unauthorized;
 
   try {
