@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LockKeyhole } from 'lucide-react';
+import { ArrowLeft, LockKeyhole } from 'lucide-react';
 import VerifiedCodeInput from '@/components/verified-code-input';
 import { DEFAULT_SCAN_VERIFICATION_SETTINGS, type ScanVerificationSettings } from '@/lib/scan-verification-settings';
 
@@ -14,6 +14,7 @@ const channels = ['淘宝', '闲鱼', '小红书', '其他'];
 let editSequence = 1;
 const newKey = (prefix: string) => `${prefix}-${Date.now()}-${editSequence++}`;
 const Toggle = ({ status, onClick }: { status: Status; onClick: () => void }) => <button type="button" className={status === 'ACTIVE' ? 'status-active' : 'status-inactive'} onClick={onClick}>{status === 'ACTIVE' ? '使用中 · 点击停用' : '已停用 · 点击启用'}</button>;
+const comparableProduct = (product: Product) => JSON.stringify({ ...product, skus: product.skus.map(({ clientKey: _clientKey, ...item }) => item), listings: product.listings.map(({ clientKey: _clientKey, ...item }) => item) });
 
 export default function Editor({ product: initial }: { product: Product }) {
   const original = useRef(initial);
@@ -87,8 +88,14 @@ export default function Editor({ product: initial }: { product: Product }) {
     if (!response.ok) { setError(data.error); setSaving(false); } else { router.push(`/products/${p.id}`); router.refresh(); }
   }
 
+  function cancelEditing() {
+    const changed = comparableProduct(p) !== comparableProduct(original.current);
+    if (changed && !window.confirm('确定放弃本次修改吗？尚未保存的内容将全部丢失。')) return;
+    router.push(`/products/${p.id}`);
+  }
+
   return <div className="page">
-    <div className="detail-head"><div><span className="eyebrow">EDIT RECORD</span><h1>编辑商品资料</h1><p className="sub">可新增规格；已生成的编码只能停用，永不删除或回收。</p></div><div className="top-actions"><Toggle status={p.status} onClick={() => setP({ ...p, status: p.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}/><button className="primary save-top" onClick={() => void save()} disabled={saving}>{saving ? '保存中…' : '保存全部修改'}</button></div></div>
+    <div className="detail-head"><div><span className="eyebrow">EDIT RECORD</span><h1>编辑商品资料</h1><p className="sub">可新增规格；已生成的编码只能停用，永不删除或回收。</p></div><div className="top-actions"><Toggle status={p.status} onClick={() => setP({ ...p, status: p.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' })}/><button type="button" className="quiet-button cancel-edit" onClick={cancelEditing}><ArrowLeft />取消并返回</button><button className="primary save-top" onClick={() => void save()} disabled={saving}>{saving ? '保存中…' : '保存全部修改'}</button></div></div>
     {settings.enabled && <div className="scan-verification-notice">编码二次验证已开启。已有且未修改的编码无需重扫，新增或修改编码需要再次扫描确认。</div>}
     {error && <div className="warning">{error}</div>}
     <div className="grid2">

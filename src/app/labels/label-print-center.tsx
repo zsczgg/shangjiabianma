@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   IconAdjustmentsHorizontal,
   IconCheck,
+  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconMinus,
@@ -16,7 +17,9 @@ import {
 import LabelBarcode from '@/components/label-barcode';
 import {
   codeByType,
+  applyUnifiedQuantity,
   expandPrintableItems,
+  groupLabelItems,
   labelMatchesQuery,
   totalLabelCopies,
   type LabelItem,
@@ -39,7 +42,6 @@ const fieldLabels: Array<[keyof LabelFieldSettings, string]> = [
   ['cainiao', '仓配编码'],
   ['platforms', '平台 ID'],
   ['image', '商品图片'],
-  ['note', '备注内容'],
 ];
 
 const paperDimensions: Record<LabelPaperSize, { width: number; height: number; label: string }> = {
@@ -50,6 +52,17 @@ const paperDimensions: Record<LabelPaperSize, { width: number; height: number; l
 
 function clampQuantity(value: number) {
   return Math.min(999, Math.max(0, Math.floor(Number.isFinite(value) ? value : 0)));
+}
+
+function mergeStoredSettings(parsed: Partial<LabelSettings>) {
+  const noteSource = parsed.noteSource || (parsed.fields?.note === false ? 'none' : parsed.customNote?.trim() ? 'custom' : 'product');
+  return {
+    ...DEFAULT_LABEL_SETTINGS,
+    ...parsed,
+    noteSource,
+    fields: { ...DEFAULT_LABEL_SETTINGS.fields, ...parsed.fields },
+    calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
+  } satisfies LabelSettings;
 }
 
 function QuantityControl({
@@ -94,6 +107,7 @@ function ProductLabel({
   fields,
   brandText,
   customNote,
+  noteSource,
   calibration,
   print = false,
 }: {
@@ -102,13 +116,14 @@ function ProductLabel({
   fields: LabelFieldSettings;
   brandText: string;
   customNote: string;
+  noteSource: LabelSettings['noteSource'];
   calibration: { x: number; y: number };
   print?: boolean;
 }) {
   const manufacturer = codeByType(item, 'BARCODE');
   const skuCainiao = codeByType(item, 'CAINIAO');
   const cainiao = skuCainiao || item.productCainiaoCode;
-  const note = customNote.trim() || item.note;
+  const note = noteSource === 'custom' ? customNote.trim() : noteSource === 'product' ? item.note : null;
 
   return (
     <article
@@ -165,6 +180,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   const [fields, setFields] = useState<LabelFieldSettings>(DEFAULT_LABEL_SETTINGS.fields);
   const [brandText, setBrandText] = useState(DEFAULT_LABEL_SETTINGS.brandText);
   const [customNote, setCustomNote] = useState(DEFAULT_LABEL_SETTINGS.customNote);
+  const [noteSource, setNoteSource] = useState<LabelSettings['noteSource']>(DEFAULT_LABEL_SETTINGS.noteSource);
   const [calibration, setCalibration] = useState(DEFAULT_LABEL_SETTINGS.calibration);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
@@ -181,12 +197,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
           const local = localStorage.getItem('yyhxfz-label-preferences');
           if (local) {
             const parsed = JSON.parse(local) as Partial<LabelSettings>;
-            next = {
-              ...DEFAULT_LABEL_SETTINGS,
-              ...parsed,
-              fields: { ...DEFAULT_LABEL_SETTINGS.fields, ...parsed.fields },
-              calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
-            };
+            next = mergeStoredSettings(parsed);
           }
         }
       } catch {
@@ -194,12 +205,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
         if (local) {
           try {
             const parsed = JSON.parse(local) as Partial<LabelSettings>;
-            next = {
-              ...DEFAULT_LABEL_SETTINGS,
-              ...parsed,
-              fields: { ...DEFAULT_LABEL_SETTINGS.fields, ...parsed.fields },
-              calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
-            };
+            next = mergeStoredSettings(parsed);
           } catch {
             next = DEFAULT_LABEL_SETTINGS;
           }
@@ -207,8 +213,10 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
       } finally {
         setPaper(next.paper);
         setDefaultCopies(next.defaultCopies);
+        setQuantities(current => applyUnifiedQuantity(current, next.defaultCopies));
         setBrandText(next.brandText);
         setCustomNote(next.customNote);
+        setNoteSource(next.noteSource);
         setFields(next.fields);
         setCalibration(next.calibration);
         setPreferencesLoaded(true);
@@ -221,7 +229,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   useEffect(() => {
     if (!preferencesLoaded) return;
     setSaveStatus('saving');
-    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, fields, calibration };
+    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, noteSource, fields, calibration };
     const timer = window.setTimeout(async () => {
       localStorage.setItem('yyhxfz-label-preferences', JSON.stringify(settings));
       try {
@@ -237,7 +245,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [brandText, calibration, customNote, defaultCopies, fields, paper, preferencesLoaded]);
+  }, [brandText, calibration, customNote, defaultCopies, fields, noteSource, paper, preferencesLoaded]);
 
   const filteredItems = useMemo(() => items.filter(item => labelMatchesQuery(item, query)), [items, query]);
   const queuedItems = useMemo(() => items.filter(item => (quantities[item.skuId] ?? 0) > 0), [items, quantities]);
@@ -245,6 +253,8 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   const activeIndex = activeItem ? queuedItems.findIndex(item => item.skuId === activeItem.skuId) : -1;
   const totalCopies = totalLabelCopies(quantities);
   const printableItems = useMemo(() => expandPrintableItems(items, quantities), [items, quantities]);
+  const groupedItems = useMemo(() => groupLabelItems(filteredItems), [filteredItems]);
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(() => new Set(initialItem ? [initialItem.productId] : []));
 
   function setQuantity(skuId: string, quantity: number) {
     const nextQuantity = clampQuantity(quantity);
@@ -266,13 +276,41 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
     if (filteredItems[0]) setActiveSkuId(filteredItems[0].skuId);
   }
 
+  function setUnifiedCopies(value: number) {
+    const copies = Math.max(1, clampQuantity(value));
+    setDefaultCopies(copies);
+    setQuantities(current => applyUnifiedQuantity(current, copies));
+  }
+
+  function setProductQuantity(productItems: LabelItem[], selected: boolean) {
+    setQuantities(current => {
+      const next = { ...current };
+      for (const item of productItems) {
+        if (selected) next[item.skuId] = defaultCopies;
+        else delete next[item.skuId];
+      }
+      return next;
+    });
+    if (selected && productItems[0]) setActiveSkuId(productItems[0].skuId);
+  }
+
+  function toggleProduct(productId: string) {
+    setExpandedProducts(current => {
+      const next = new Set(current);
+      if (next.has(productId)) next.delete(productId); else next.add(productId);
+      return next;
+    });
+  }
+
   function resetPreferences() {
     setPaper(DEFAULT_LABEL_SETTINGS.paper);
     setDefaultCopies(DEFAULT_LABEL_SETTINGS.defaultCopies);
+    setQuantities(current => applyUnifiedQuantity(current, DEFAULT_LABEL_SETTINGS.defaultCopies));
     setBrandText(DEFAULT_LABEL_SETTINGS.brandText);
     setFields(DEFAULT_LABEL_SETTINGS.fields);
     setCalibration(DEFAULT_LABEL_SETTINGS.calibration);
     setCustomNote(DEFAULT_LABEL_SETTINGS.customNote);
+    setNoteSource(DEFAULT_LABEL_SETTINGS.noteSource);
   }
 
   function printLabels() {
@@ -327,8 +365,8 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
           </div>
         </div>
         <div className="command-group">
-          <span>加入队列时份数</span>
-          <QuantityControl value={defaultCopies} onChange={value => setDefaultCopies(Math.max(1, value))} compact />
+          <span>统一打印份数</span>
+          <QuantityControl value={defaultCopies} onChange={setUnifiedCopies} compact />
         </div>
         <button className="quiet-button" type="button" onClick={resetPreferences}><IconRefresh /> 恢复默认</button>
         <div className="calibration-summary"><IconAdjustmentsHorizontal /> 偏移 X {calibration.x.toFixed(1)} / Y {calibration.y.toFixed(1)} mm</div>
@@ -348,38 +386,33 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <input value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索商品、规格或编码" />
           </label>
           <div className="queue-tools">
-            <span>找到 {filteredItems.length} 个规格</span>
+            <span>找到 {groupedItems.length} 个商品 · {filteredItems.length} 个规格</span>
             <button type="button" onClick={addVisibleItems}>全部加入</button>
           </div>
           <div className="label-item-list">
-            {filteredItems.map(item => {
-              const quantity = quantities[item.skuId] ?? 0;
-              const selected = item.skuId === activeItem?.skuId;
-              return (
-                <div
-                  className={`label-item-row${selected ? ' selected' : ''}`}
-                  key={item.skuId}
-                  onClick={() => setActiveSkuId(item.skuId)}
-                >
-                  <button
-                    type="button"
-                    className={`queue-check${quantity > 0 ? ' checked' : ''}`}
-                    aria-label={quantity > 0 ? '从打印队列移除' : '加入打印队列'}
-                    onClick={event => {
-                      event.stopPropagation();
-                      setQuantity(item.skuId, quantity > 0 ? 0 : defaultCopies);
-                    }}
-                  >
-                    {quantity > 0 && <IconCheck />}
-                  </button>
-                  <div className="label-item-copy">
-                    <b>{item.productName}</b>
-                    <span>{item.spec}</span>
-                    <code>{item.internalCode}</code>
-                  </div>
-                  {quantity > 0 && <QuantityControl compact value={quantity} onChange={value => setQuantity(item.skuId, value)} />}
+            {groupedItems.map(group => {
+              const multiSku = group.items.length > 1;
+              const expanded = Boolean(query.trim()) || expandedProducts.has(group.productId);
+              const selectedCount = group.items.filter(item => (quantities[item.skuId] ?? 0) > 0).length;
+              const allSelected = selectedCount === group.items.length;
+              const onlyItem = group.items[0];
+              return <div className="label-product-group" key={group.productId}>
+                <div className={`label-spu-row${activeItem?.productId === group.productId ? ' selected' : ''}`} onClick={() => multiSku ? toggleProduct(group.productId) : setActiveSkuId(onlyItem.skuId)}>
+                  <button type="button" className={`queue-check${selectedCount > 0 ? ' checked' : ''}${selectedCount > 0 && !allSelected ? ' partial' : ''}`} aria-label={allSelected ? `取消选择${group.productName}全部规格` : `选择${group.productName}全部规格`} onClick={event => { event.stopPropagation(); setProductQuantity(group.items, !allSelected); }}>{allSelected && <IconCheck />}{selectedCount > 0 && !allSelected && <span />}</button>
+                  <div className="label-product-copy"><b>{group.productName}</b><span>{group.brand || '未设置品牌'} · {group.items.length} 个规格</span>{!multiSku && <code>{onlyItem.spec} · {onlyItem.internalCode}</code>}</div>
+                  {multiSku && <button type="button" className="product-expand" aria-label={expanded ? '收起规格' : '展开规格'} onClick={event => { event.stopPropagation(); toggleProduct(group.productId); }}>{expanded ? <IconChevronDown /> : <IconChevronRight />}</button>}
+                  {!multiSku && (quantities[onlyItem.skuId] ?? 0) > 0 && <QuantityControl compact value={quantities[onlyItem.skuId]} onChange={value => setQuantity(onlyItem.skuId, value)} />}
                 </div>
-              );
+                {multiSku && expanded && <div className="label-sku-children">{group.items.map(item => {
+                  const quantity = quantities[item.skuId] ?? 0;
+                  const selected = item.skuId === activeItem?.skuId;
+                  return <div className={`label-sku-row${selected ? ' selected' : ''}`} key={item.skuId} onClick={() => setActiveSkuId(item.skuId)}>
+                    <button type="button" className={`queue-check${quantity > 0 ? ' checked' : ''}`} aria-label={quantity > 0 ? `取消选择${item.spec}` : `选择${item.spec}`} onClick={event => { event.stopPropagation(); setQuantity(item.skuId, quantity > 0 ? 0 : defaultCopies); }}>{quantity > 0 && <IconCheck />}</button>
+                    <div className="label-item-copy"><b>{item.spec}</b><code>{item.internalCode}</code></div>
+                    {quantity > 0 && <QuantityControl compact value={quantity} onChange={value => setQuantity(item.skuId, value)} />}
+                  </div>;
+                })}</div>}
+              </div>;
             })}
           </div>
         </aside>
@@ -409,7 +442,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <div className="ruler ruler-horizontal"><span>0</span><span>{paperDimensions[paper].width / 2}</span><span>{paperDimensions[paper].width} mm</span></div>
             <div className="ruler ruler-vertical"><span>0</span><span>{paperDimensions[paper].height / 2}</span><span>{paperDimensions[paper].height} mm</span></div>
             {activeItem ? (
-              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} calibration={calibration} />
+              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} noteSource={noteSource} calibration={calibration} />
             ) : (
               <div className="preview-placeholder">从左侧选择一个商品规格</div>
             )}
@@ -455,15 +488,14 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <small>{brandText.length} / 30</small>
           </div>
           <div className="settings-section">
-            <label>自定义备注</label>
-            <textarea
-              value={customNote}
-              onChange={event => setCustomNote(event.target.value)}
-              placeholder={activeItem?.note || '例如：仓库货位、活动批次'}
-              maxLength={60}
-              wrap="soft"
-            />
-            <small>{customNote.length} / 60</small>
+            <label>备注来源</label>
+            <div className="note-source-options">
+              <button type="button" className={noteSource === 'product' ? 'active' : ''} onClick={() => { setNoteSource('product'); setFields(current => ({ ...current, note: true })); }}>商品备注</button>
+              <button type="button" className={noteSource === 'custom' ? 'active' : ''} onClick={() => { setNoteSource('custom'); setFields(current => ({ ...current, note: true })); }}>自定义备注</button>
+              <button type="button" className={noteSource === 'none' ? 'active' : ''} onClick={() => { setNoteSource('none'); setFields(current => ({ ...current, note: false })); }}>不显示</button>
+            </div>
+            {noteSource === 'product' && <p className="product-note-preview">{activeItem?.note ? `当前商品备注：${activeItem.note}` : '当前商品暂无备注'}</p>}
+            {noteSource === 'custom' && <><textarea value={customNote} onChange={event => setCustomNote(event.target.value)} placeholder="例如：仓库货位、活动批次" maxLength={60} wrap="soft"/><small>{customNote.length} / 60</small></>}
           </div>
           <div className="settings-section">
             <div className="settings-section-title">
@@ -502,6 +534,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             fields={fields}
             brandText={brandText}
             customNote={customNote}
+            noteSource={noteSource}
             calibration={calibration}
             print
           />

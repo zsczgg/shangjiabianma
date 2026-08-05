@@ -19,4 +19,21 @@ describe('label settings', () => {
       calibration: { x: 20, y: 0 },
     })).toThrow();
   });
+
+  it('migrates legacy custom-note settings without resetting preferences', () => {
+    const { noteSource: _noteSource, ...legacy } = {
+      ...DEFAULT_LABEL_SETTINGS,
+      customNote: '旧版自定义备注',
+      fields: { ...DEFAULT_LABEL_SETTINGS.fields, note: true },
+    };
+    expect(labelSettingsSchema.parse(legacy).noteSource).toBe('custom');
+  });
+
+  it('keeps legacy hidden notes hidden', () => {
+    const { noteSource: _noteSource, ...legacy } = {
+      ...DEFAULT_LABEL_SETTINGS,
+      fields: { ...DEFAULT_LABEL_SETTINGS.fields, note: false },
+    };
+    expect(labelSettingsSchema.parse(legacy).noteSource).toBe('none');
+  });
 });

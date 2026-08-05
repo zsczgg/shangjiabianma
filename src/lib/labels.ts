@@ -25,6 +25,7 @@ export type LabelItem = {
 };
 
 export type QueueQuantities = Record<string, number>;
+export type LabelProductGroup = { productId: string; productName: string; brand: string | null; items: LabelItem[] };
 
 export function labelMatchesQuery(item: LabelItem, query: string) {
   const normalized = query.trim().toLocaleLowerCase('zh-CN');
@@ -56,4 +57,19 @@ export function expandPrintableItems(items: LabelItem[], quantities: QueueQuanti
       copyIndex,
     })),
   );
+}
+
+export function applyUnifiedQuantity(quantities: QueueQuantities, quantity: number) {
+  const normalized = Math.max(1, Math.floor(quantity));
+  return Object.fromEntries(Object.keys(quantities).map(skuId => [skuId, normalized]));
+}
+
+export function groupLabelItems(items: LabelItem[]) {
+  const groups = new Map<string, LabelProductGroup>();
+  for (const item of items) {
+    const group = groups.get(item.productId) || { productId: item.productId, productName: item.productName, brand: item.brand, items: [] };
+    group.items.push(item);
+    groups.set(item.productId, group);
+  }
+  return Array.from(groups.values());
 }

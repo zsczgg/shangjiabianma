@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { codeByType, expandPrintableItems, labelMatchesQuery, totalLabelCopies, type LabelItem } from './labels';
+import { applyUnifiedQuantity, codeByType, expandPrintableItems, groupLabelItems, labelMatchesQuery, totalLabelCopies, type LabelItem } from './labels';
 
 const item: LabelItem = {
   skuId: 'sku-1',
@@ -36,5 +36,17 @@ describe('label helpers', () => {
     const quantities = { 'sku-1': 2 };
     expect(totalLabelCopies(quantities)).toBe(2);
     expect(expandPrintableItems([item], quantities)).toHaveLength(2);
+  });
+
+  it('applies unified copies to every selected SKU', () => {
+    expect(applyUnifiedQuantity({ 'sku-1': 1, 'sku-2': 4 }, 3)).toEqual({ 'sku-1': 3, 'sku-2': 3 });
+    expect(totalLabelCopies(applyUnifiedQuantity({ 'sku-1': 1, 'sku-2': 4 }, 3))).toBe(6);
+  });
+
+  it('groups multiple SKUs under one product', () => {
+    const secondSku = { ...item, skuId: 'sku-2', spec: '雾霾蓝 / L', internalCode: 'yyhxfz000129' };
+    const groups = groupLabelItems([item, secondSku]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].items.map(sku => sku.skuId)).toEqual(['sku-1', 'sku-2']);
   });
 });
