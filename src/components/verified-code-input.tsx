@@ -9,15 +9,17 @@ type Props = {
   placeholder?: string;
   required?: boolean;
   verificationEnabled: boolean;
+  trustedValue?: string;
   onChange: (value: string) => void;
   onVerificationChange: (verified: boolean) => void;
   onMismatch: (message: string) => void;
 };
 
-export default function VerifiedCodeInput({ value, label, placeholder, required, verificationEnabled, onChange, onVerificationChange, onMismatch }: Props) {
+export default function VerifiedCodeInput({ value, label, placeholder, required, verificationEnabled, trustedValue, onChange, onVerificationChange, onMismatch }: Props) {
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState('');
   const [verified, setVerified] = useState(false);
+  const [accepted, setAccepted] = useState(trustedValue !== undefined && value === trustedValue);
   const confirmRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -27,11 +29,13 @@ export default function VerifiedCodeInput({ value, label, placeholder, required,
   function update(value: string) {
     onChange(value);
     setVerified(false);
-    onVerificationChange(!verificationEnabled || !value.trim());
+    const matchesTrustedValue = trustedValue !== undefined && value === trustedValue;
+    setAccepted(matchesTrustedValue);
+    onVerificationChange(matchesTrustedValue || !verificationEnabled || !value.trim());
   }
 
   function requestVerification() {
-    if (!verificationEnabled || !value.trim() || verified || open) return;
+    if (!verificationEnabled || !value.trim() || accepted || open) return;
     setConfirmation('');
     setOpen(true);
   }
@@ -40,6 +44,7 @@ export default function VerifiedCodeInput({ value, label, placeholder, required,
     setOpen(false);
     setConfirmation('');
     setVerified(false);
+    setAccepted(true);
     onChange('');
     onVerificationChange(true);
     if (message) onMismatch(message);
@@ -50,6 +55,7 @@ export default function VerifiedCodeInput({ value, label, placeholder, required,
       setOpen(false);
       setConfirmation('');
       setVerified(true);
+      setAccepted(true);
       onVerificationChange(true);
       return;
     }

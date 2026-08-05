@@ -42,7 +42,7 @@ export default function ScanVerificationSettingsPanel() {
   return <section className="card system-settings-card">
     <div className="system-settings-head">
       <div className="system-settings-icon"><IconBarcode /></div>
-      <div><h2>新建商品编码二次验证</h2><p>首次扫描后要求再次扫描，两次完全一致才允许保存。</p></div>
+      <div><h2>商品编码二次验证</h2><p>新建编码或修改已有编码时要求再次扫描，两次完全一致才允许保存。</p></div>
       <label className="switch-row master-switch"><span>{settings.enabled ? '已开启' : '已关闭'}</span><input type="checkbox" checked={settings.enabled} disabled={status === 'loading'} onChange={event => void save({ ...settings, enabled: event.target.checked })}/><i /></label>
     </div>
     <div className={`verification-setting-list ${settings.enabled ? '' : 'disabled'}`}>
