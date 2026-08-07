@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    return apiSuccess(skus.map(serializeSku), {
+    return apiSuccess(skus.map(sku => serializeSku(sku, request.nextUrl.origin)), {
       page,
       pageSize,
       total,

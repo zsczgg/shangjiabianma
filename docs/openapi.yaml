@@ -161,7 +161,19 @@ components:
         createdAt: { type: string, format: date-time }
         product:
           type: object
-          additionalProperties: true
+          required: [productId, name, imageUrl, imageSource, status]
+          properties:
+            productId: { type: string }
+            name: { type: string }
+            brand: { type: [string, 'null'] }
+            category: { type: [string, 'null'] }
+            imageUrl: { type: [string, 'null'], format: uri, description: 可直接访问的完整商品图片地址 }
+            imageSource: { type: [string, 'null'], enum: [UPLOAD, URL, null] }
+            note: { type: [string, 'null'] }
+            status: { type: string, enum: [ACTIVE, INACTIVE] }
+            warehouseCode: { type: [string, 'null'] }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
         codes:
           type: object
           additionalProperties: true

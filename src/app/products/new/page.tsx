@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import VerifiedCodeInput from '@/components/verified-code-input';
+import ProductImageInput from '@/components/product-image-input';
 import { DEFAULT_SCAN_VERIFICATION_SETTINGS, type ScanVerificationSettings } from '@/lib/scan-verification-settings';
 
 type Row = { id: string; spec: string; barcode: string; cainiao: string };
@@ -17,6 +18,7 @@ export default function NewProduct() {
   const [rows, setRows] = useState<Row[]>([{ ...makeRow(), spec: '默认规格' }]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [productWarehouseCode, setProductWarehouseCode] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [settings, setSettings] = useState<ScanVerificationSettings>(DEFAULT_SCAN_VERIFICATION_SETTINGS);
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
@@ -63,7 +65,7 @@ export default function NewProduct() {
     setError('');
     const form = new FormData(event.currentTarget);
     const body = {
-      name: form.get('name'), brand: form.get('brand'), category: form.get('category'), imageUrl: form.get('imageUrl'), note: form.get('note'),
+      name: form.get('name'), brand: form.get('brand'), category: form.get('category'), imageUrl, note: form.get('note'),
       cainiaoCode: productWarehouseCode,
       skus: rows.map(({ spec, barcode, cainiao }) => ({ spec, barcode, cainiao })),
       listings: listings.map(({ channel, shop, productExternalId }) => ({ channel, shop, productExternalId })),
@@ -82,7 +84,7 @@ export default function NewProduct() {
     {settings.enabled && <div className="scan-verification-notice">编码二次验证已开启。带验证的编码第一次录入完成后，需要再次扫描确认。</div>}
     <form onSubmit={submit} onKeyDown={preventEnterSubmit}>
       <div className="grid2">
-        <section className="card form-card"><h2>01 · 商品信息</h2><div className="field"><label>商品名称 *</label><input name="name" required placeholder="例如：轻氧云感防晒外套"/></div><div className="grid2"><div className="field"><label>品牌</label><input name="brand"/></div><div className="field"><label>分类</label><input name="category"/></div></div><div className="field"><label>商品图片网址</label><input name="imageUrl" type="url" placeholder="https://…（打印标签时可选显示）"/></div><div className="field"><label>备注</label><textarea name="note"/></div></section>
+        <section className="card form-card"><h2>01 · 商品信息</h2><div className="field"><label>商品名称 *</label><input name="name" required placeholder="例如：轻氧云感防晒外套"/></div><div className="grid2"><div className="field"><label>品牌</label><input name="brand"/></div><div className="field"><label>分类</label><input name="category"/></div></div><div className="field"><label>商品图片</label><ProductImageInput value={imageUrl} onChange={setImageUrl}/></div><div className="field"><label>备注</label><textarea name="note"/></div></section>
         <section className="card form-card"><div className="detail-head"><div><h2>02 · 平台商品</h2><p className="sub">同一商品可绑定多个平台和店铺关系。</p></div><button type="button" className="primary" onClick={() => setListings([...listings, makeListing()])}>＋ 添加平台</button></div>{!listings.length && <div className="empty" style={{ padding: 30 }}>尚未添加平台商品，可稍后编辑</div>}{listings.map((listing, index) => <div className="platform-row" key={listing.id}><div className="field"><label>平台</label><select value={listing.channel} onChange={event => setListings(listings.map((item, itemIndex) => itemIndex === index ? { ...item, channel: event.target.value } : item))}>{channels.map(channel => <option key={channel}>{channel}</option>)}</select></div><div className="field"><label>店铺名称</label><input value={listing.shop} onChange={event => setListings(listings.map((item, itemIndex) => itemIndex === index ? { ...item, shop: event.target.value } : item))}/></div><div className="field"><label>平台商品 ID *</label><VerifiedCodeInput value={listing.productExternalId} required label="平台商品 ID" verificationEnabled={verificationEnabled('platformProductId')} onChange={value => setListings(listings.map((item, itemIndex) => itemIndex === index ? { ...item, productExternalId: value } : item))} onVerificationChange={verified => setFieldVerified(`listing-${listing.id}`, verified)} onMismatch={setError}/></div><button type="button" onClick={() => setListings(listings.filter((_, itemIndex) => itemIndex !== index))}>移除</button></div>)}</section>
       </div>
       <section className="card form-card" style={{ marginTop: 18 }}><h2>03 · 商品级仓配编码</h2><p className="sub">适合单规格商品，可留空后续补充。</p><div className="field" style={{ maxWidth: 520 }}><label>商品级仓配编码</label><VerifiedCodeInput value={productWarehouseCode} label="商品级仓配编码" placeholder="扫描或粘贴仓配商品编码" verificationEnabled={verificationEnabled('productWarehouseCode')} onChange={setProductWarehouseCode} onVerificationChange={verified => setFieldVerified('product-warehouse', verified)} onMismatch={setError}/></div></section>

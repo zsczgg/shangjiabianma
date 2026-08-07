@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { getCatalog } from '@/lib/catalog';
+import { IconPhoto } from '@tabler/icons-react';
+import { formatBeijingTime } from '@/lib/date-time';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,12 +19,12 @@ export default async function Products({ searchParams }: { searchParams: { q?: s
         const externalCodes = product.skus.reduce((sum, sku) => sum + sku.externalCodes.length, 0) + (product.cainiaoCode ? 1 : 0);
         const activeListings = product.listings.filter(listing => listing.status === 'ACTIVE').length;
         return <tr key={product.id}>
-          <td><Link href={`/products/${product.id}`}>{product.name}</Link><small>商品资料与全部编码</small></td>
+          <td><div className="product-title-cell">{product.imageUrl ? <img className="product-thumb" src={product.imageUrl} alt=""/> : <span className="product-thumb product-image-placeholder"><IconPhoto/></span>}<div><Link href={`/products/${product.id}`}>{product.name}</Link><small>商品资料与全部编码</small></div></div></td>
           <td>{product.brand || '未设置品牌'}<small>{product.category || '未分类'}</small></td>
           <td><strong className="summary-number">{activeSkus}</strong><small>共 {product.skus.length} 个规格</small></td>
           <td><strong className="summary-number">{externalCodes}</strong><small>厂家/仓配等映射</small></td>
           <td><strong className="summary-number">{activeListings}</strong><small>共 {product.listings.length} 个平台关系</small></td>
-          <td><span className={`status-dot ${product.status === 'ACTIVE' ? 'active' : ''}`}>{product.status === 'ACTIVE' ? '使用中' : '已停用'}</span><small>{product.updatedAt.toLocaleString('zh-CN')}</small></td>
+          <td><span className={`status-dot ${product.status === 'ACTIVE' ? 'active' : ''}`}>{product.status === 'ACTIVE' ? '使用中' : '已停用'}</span><small>{formatBeijingTime(product.updatedAt)}</small></td>
           <td><Link className="summary-detail-link" href={`/products/${product.id}`}>查看详情</Link></td>
         </tr>;
       })}</tbody>

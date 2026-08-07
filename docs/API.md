@@ -154,7 +154,8 @@ GET /api/v1/lookup?code=6931234567890
     "name": "商品名称",
     "brand": "品牌",
     "category": "分类",
-    "imageUrl": null,
+    "imageUrl": "http://你的服务器地址:3210/uploads/products/550e8400-e29b-41d4-a716-446655440000.webp",
+    "imageSource": "UPLOAD",
     "note": null,
     "status": "ACTIVE",
     "warehouseCode": "商品级仓配编码",
@@ -180,6 +181,8 @@ GET /api/v1/lookup?code=6931234567890
 ```
 
 当商品或规格停用时，历史数据仍然返回，同时 `status` 为 `INACTIVE`，`warning` 会提示禁止用于新业务。
+
+`product.imageUrl` 是可直接访问的完整图片地址：网页上传的图片会返回本系统地址，外部图片则保留原网址。`product.imageSource` 为 `UPLOAD`、`URL` 或 `null`。没有商品图片时，`imageUrl` 和 `imageSource` 都返回 `null`。这两个字段会同时出现在 SKU 列表、SKU 详情和任意编码反查接口中。
 
 ## 8. HTTP 状态码与错误码
 

@@ -1,9 +1,10 @@
 import { PrismaClient } from '@prisma/client';
-import { mkdir, readdir, stat, unlink } from 'node:fs/promises';
+import { cp, mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 
 const databaseUrl = process.env.DATABASE_URL || 'file:/data/shangjiabianma.db';
 const backupDir = process.env.BACKUP_DIR || '/backups';
+const imageDir = process.env.PRODUCT_IMAGE_DIR || '/data/uploads/products';
 const interval = Number(process.env.BACKUP_INTERVAL_SECONDS || 21600) * 1000;
 const retention = Number(process.env.BACKUP_RETENTION_DAYS || 30) * 86400000;
 
@@ -13,7 +14,9 @@ const sqlPath = value => value.replaceAll("'", "''");
 
 async function createBackup() {
   await mkdir(backupDir, { recursive: true });
-  const destination = path.join(backupDir, `shangjiabianma-${timestamp()}.db`);
+  const backupTimestamp = timestamp();
+  const destination = path.join(backupDir, `shangjiabianma-${backupTimestamp}.db`);
+  const imageDestination = path.join(backupDir, `product-images-${backupTimestamp}`);
   const source = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
   try {
     await source.$executeRawUnsafe(`VACUUM INTO '${sqlPath(destination)}'`);
@@ -32,11 +35,20 @@ async function createBackup() {
     await backup.$disconnect();
   }
 
+  await cp(imageDir, imageDestination, { recursive: true, force: false }).catch(error => {
+    if (error?.code !== 'ENOENT') throw error;
+  });
+
   const now = Date.now();
   for (const file of await readdir(backupDir)) {
     if (!/^shangjiabianma-\d{14}\.db$/.test(file)) continue;
     const filePath = path.join(backupDir, file);
     if (now - (await stat(filePath)).mtimeMs > retention) await unlink(filePath);
+  }
+  for (const file of await readdir(backupDir)) {
+    if (!/^product-images-\d{14}$/.test(file)) continue;
+    const filePath = path.join(backupDir, file);
+    if (now - (await stat(filePath)).mtimeMs > retention) await rm(filePath, { recursive: true, force: true });
   }
   console.log(`Backup created: ${destination}`);
 }

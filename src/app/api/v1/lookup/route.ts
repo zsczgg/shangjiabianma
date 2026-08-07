@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!matches.length) return apiError('CODE_NOT_FOUND', '没有找到该编码对应的商品规格', 404);
-    return apiSuccess(matches.map(match => ({ matchedBy: match.matchedBy, ...serializeSku(match.sku) })), { count: matches.length });
+    return apiSuccess(matches.map(match => ({ matchedBy: match.matchedBy, ...serializeSku(match.sku, request.nextUrl.origin) })), { count: matches.length });
   } catch (error) {
     console.error('integration API lookup failed', error);
     return apiError('INTERNAL_ERROR', '编码查询失败', 500);

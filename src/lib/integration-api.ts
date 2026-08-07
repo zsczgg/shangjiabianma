@@ -2,6 +2,7 @@ import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from './prisma';
+import { absoluteImageUrl, imageSource } from './product-image';
 
 export const API_VERSION = 'v1';
 export const MAX_PAGE_SIZE = 100;
@@ -69,7 +70,7 @@ export function parsePagination(searchParams: URLSearchParams) {
   return { page, pageSize, skip: (page - 1) * pageSize };
 }
 
-export function serializeSku(sku: IntegrationSku) {
+export function serializeSku(sku: IntegrationSku, origin = '') {
   const manufacturerBarcode = sku.externalCodes.find(code => code.type === 'BARCODE')?.value || null;
   const warehouseCode = sku.externalCodes.find(code => code.type === 'CAINIAO')?.value || null;
   const otherCodes = sku.externalCodes
@@ -90,7 +91,8 @@ export function serializeSku(sku: IntegrationSku) {
       name: sku.product.name,
       brand: sku.product.brand,
       category: sku.product.category,
-      imageUrl: sku.product.imageUrl,
+      imageUrl: origin ? absoluteImageUrl(sku.product.imageUrl, origin) : sku.product.imageUrl,
+      imageSource: imageSource(sku.product.imageUrl),
       note: sku.product.note,
       status: sku.product.status,
       warehouseCode: sku.product.cainiaoCode,

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: { internal
       include: integrationSkuInclude,
     });
     if (!sku) return apiError('SKU_NOT_FOUND', '没有找到该内部编码', 404);
-    return apiSuccess(serializeSku(sku));
+    return apiSuccess(serializeSku(sku, request.nextUrl.origin));
   } catch (error) {
     console.error('integration API detail failed', error);
     return apiError('INTERNAL_ERROR', '读取 SKU 数据失败', 500);

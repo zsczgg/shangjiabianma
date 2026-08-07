@@ -11,7 +11,7 @@ type LegacyCredential = { name: string; maskedKey: string; status: 'ACTIVE' | 'I
 
 function formatTime(value: string | null) {
   if (!value) return '尚未使用';
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
 export default function ApiKeyManager() {
