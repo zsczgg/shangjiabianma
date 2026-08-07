@@ -87,7 +87,34 @@ docker compose -f /opt/shangjiabianma-kucun/docker-compose.yml logs --tail=100 a
 
 用户访问地址可通过 Tailscale 名称或固定地址解决，不应反向影响容器间 API 配置。
 
-## 7. 故障与回退
+## 7. 公网同端口入口
+
+当前使用 FRP 保留原云服务器公网入口，同时把业务实际运行位置迁移到本地服务器：
+
+```text
+用户 -> 47.105.76.89:3210 -> 云端 FRPS -> 本地 FRPC -> 127.0.0.1:3210
+用户 -> 47.105.76.89:3220 -> 云端 FRPS -> 本地 FRPC -> 127.0.0.1:3220
+```
+
+约定如下：
+
+- 云服务器上的编码和库存应用容器保持停止，避免产生两套可写数据库。
+- 云服务器只运行 FRPS，并监听公网 `3210`、`3220` 转发端口。
+- 本地 FRPC 配置位于 `/var/apps/frpc/shares/frpc/default/frpc.toml`。
+- 两条代理名为 `shangjiabianma-encoding` 和 `shangjiabianma-inventory`。
+- FRP token、管理密码和其他凭据不得写入 Git 文档或仓库。
+- 修改 FRPC 前先备份配置，运行 `frpc verify -c 配置文件`，通过后使用 `frpc reload -c 配置文件` 热重载。
+
+公网验证：
+
+```bash
+curl --fail http://47.105.76.89:3210/api/v1/health
+curl -I http://47.105.76.89:3220
+```
+
+编码系统根页面预期仍受 HTTP Basic Auth 保护。库存系统当前没有同等级网页登录认证，因此开放 `3220` 到公网前必须明确接受其安全风险；后续应增加登录保护或限制来源地址。
+
+## 8. 故障与回退
 
 - 提示 `network shangjiabianma-internal declared as external, but could not be found`：先执行第 4 节的网络创建命令。
 - 提示无法解析 `shangjiabianma-app`：确认两个 app 容器都已加入 `shangjiabianma-internal`。
@@ -95,7 +122,7 @@ docker compose -f /opt/shangjiabianma-kucun/docker-compose.yml logs --tail=100 a
 - 编码系统不可用：库存系统保留本地商品镜像和库存数据，但同步会失败；恢复编码系统后重新同步。
 - 需要回退服务器：停止新服务器容器，在旧服务器恢复对应数据库后再启动；禁止同时使用两套可写库存数据库。
 
-## 8. 不变量
+## 9. 不变量
 
 以下名称和端口构成跨仓库契约，修改时必须同步更新两个仓库及本文档：
 
