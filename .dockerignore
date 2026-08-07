@@ -15,4 +15,4 @@ data
 docs/audit
 design-qa.md
 npm-debug.log*
-
+deploy/.htpasswd

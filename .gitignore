@@ -22,3 +22,4 @@ top-save-cainiao.png
 npm-debug.log*
 .codex-*.png
 .prisma-engines/
+deploy/.htpasswd
