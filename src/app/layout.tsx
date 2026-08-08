@@ -1,3 +1,4 @@
+export const dynamic='force-dynamic';
 import type { Metadata } from 'next';import Link from 'next/link';import { IconLayoutDashboard,IconPackages,IconPackageImport,IconScan,IconDatabase,IconPrinter,IconKey,IconSettings } from '@tabler/icons-react';import BeijingClock from '@/components/beijing-clock';import { getSystemTimeZone } from '@/lib/system-timezone-store';import './globals.css';import './labels/labels.css';
 export const metadata:Metadata={title:'媛媛和小肥朱',description:'统一商品编码管理系统'};
 const nav=[['/','工作台',IconLayoutDashboard],['/products','商品信息',IconPackages],['/products/new','新建商品',IconPackageImport],['/scan','扫码查询',IconScan],['/labels','标签打印',IconPrinter],['/api-management','API 管理',IconKey],['/settings','系统设置',IconSettings]] as const;
