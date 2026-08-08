@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { IconCheck, IconCopy, IconEye, IconKey, IconPlus, IconRefresh, IconShieldLock, IconTrash } from '@tabler/icons-react';
+import type { SystemTimeZone } from '@/lib/system-timezone';
 
 type Credential = {
   id: string; name: string; maskedKey: string; status: 'ACTIVE' | 'INACTIVE';
@@ -9,12 +10,12 @@ type Credential = {
 };
 type LegacyCredential = { name: string; maskedKey: string; status: 'ACTIVE' | 'INACTIVE'; revealable: boolean };
 
-function formatTime(value: string | null) {
+function formatTime(value: string | null, timeZone: SystemTimeZone) {
   if (!value) return '尚未使用';
-  return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
+  return new Intl.DateTimeFormat('zh-CN', { timeZone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
-export default function ApiKeyManager() {
+export default function ApiKeyManager({ timeZone }: { timeZone: SystemTimeZone }) {
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [legacy, setLegacy] = useState<LegacyCredential | null>(null);
   const [name, setName] = useState('');
@@ -116,7 +117,7 @@ export default function ApiKeyManager() {
     <section className="card api-key-create"><div><IconKey /><div><h2>创建新密钥</h2><p>建议按用途命名，例如“旺店通正式环境”或“库存系统测试”。</p></div></div><div className="api-key-create-form"><input value={name} maxLength={40} onChange={event => setName(event.target.value)} onKeyDown={event => event.key === 'Enter' && void createKey()} placeholder="密钥名称"/><button className="primary" type="button" disabled={busy} onClick={() => void createKey()}><IconPlus />创建密钥</button></div>{error && <div className="warning api-key-error">{error}</div>}</section>
 
     <section className="api-key-list-section"><div className="section-heading"><div><h2>访问密钥</h2><p>最后创建的排在最上面；使用中的密钥需先停用，之后才可删除。</p></div><button className="quiet-button" type="button" onClick={() => void load()}><IconRefresh />刷新</button></div><div className="card api-key-table-wrap"><table className="table api-key-table"><thead><tr><th>名称</th><th>密钥</th><th>状态</th><th>创建时间</th><th>最近使用</th><th>操作</th></tr></thead><tbody>
-      {credentials.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td><code>{item.maskedKey}</code></td><td><span className={`status-dot ${item.status === 'ACTIVE' ? 'active' : ''}`}>{item.status === 'ACTIVE' ? '使用中' : '已停用'}</span></td><td>{formatTime(item.createdAt)}</td><td>{formatTime(item.lastUsedAt)}</td><td><div className="api-key-row-actions"><button type="button" disabled={busy || !item.revealable} title={item.revealable ? '查看完整密钥' : '旧密钥无法恢复'} onClick={() => void revealKey(item.id, item.name)}><IconEye />查看</button>{item.status === 'ACTIVE' ? <button className="api-key-revoke" disabled={busy} onClick={() => confirm(`确认停用“${item.name}”？停用后使用该密钥的系统会立即无法访问。`) && void runAction({ action: 'REVOKE', id: item.id })}>停用</button> : <button className="api-key-delete" disabled={busy} onClick={() => void deleteKey(item)}><IconTrash />删除</button>}</div></td></tr>)}
+      {credentials.map(item => <tr key={item.id}><td><b>{item.name}</b></td><td><code>{item.maskedKey}</code></td><td><span className={`status-dot ${item.status === 'ACTIVE' ? 'active' : ''}`}>{item.status === 'ACTIVE' ? '使用中' : '已停用'}</span></td><td>{formatTime(item.createdAt, timeZone)}</td><td>{formatTime(item.lastUsedAt, timeZone)}</td><td><div className="api-key-row-actions"><button type="button" disabled={busy || !item.revealable} title={item.revealable ? '查看完整密钥' : '旧密钥无法恢复'} onClick={() => void revealKey(item.id, item.name)}><IconEye />查看</button>{item.status === 'ACTIVE' ? <button className="api-key-revoke" disabled={busy} onClick={() => confirm(`确认停用“${item.name}”？停用后使用该密钥的系统会立即无法访问。`) && void runAction({ action: 'REVOKE', id: item.id })}>停用</button> : <button className="api-key-delete" disabled={busy} onClick={() => void deleteKey(item)}><IconTrash />删除</button>}</div></td></tr>)}
       {legacy && <tr><td><b>{legacy.name}</b><small>旧版服务器密钥，迁移完成后可停用</small></td><td><code>{legacy.maskedKey}</code></td><td><span className={`status-dot ${legacy.status === 'ACTIVE' ? 'active' : ''}`}>{legacy.status === 'ACTIVE' ? '使用中' : '已停用'}</span></td><td>系统部署时</td><td>不记录</td><td><div className="api-key-row-actions"><button type="button" disabled={busy} onClick={() => void revealKey('legacy', legacy.name)}><IconEye />查看</button>{legacy.status === 'ACTIVE' && <button className="api-key-revoke" disabled={busy} onClick={() => confirm('确认停用服务器旧密钥？请确保新密钥已经测试成功。') && void runAction({ action: 'DISABLE_LEGACY' })}>停用</button>}</div></td></tr>}
       {!legacy && credentials.length === 0 && <tr><td colSpan={6} className="empty">还没有 API Key，请先创建一个。</td></tr>}
     </tbody></table></div></section>

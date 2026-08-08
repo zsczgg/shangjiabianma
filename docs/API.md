@@ -68,10 +68,13 @@ GET /api/v1/health
   "data": {
     "status": "ok",
     "version": "v1",
-    "time": "2026-08-03T08:00:00.000Z"
+    "time": "2026-08-03T08:00:00.000Z",
+    "timeZone": "Asia/Shanghai"
   }
 }
 ```
+
+`time` 始终是标准 ISO 时间；`timeZone` 表示编码系统当前选择的显示时区，可为 `Asia/Shanghai` 或 `Asia/Seoul`。
 
 ## 4. 分页获取 SKU
 

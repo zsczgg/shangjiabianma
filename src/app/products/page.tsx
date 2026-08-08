@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { getCatalog } from '@/lib/catalog';
 import { IconPhoto } from '@tabler/icons-react';
-import { formatBeijingTime } from '@/lib/date-time';
+import { formatSystemTime } from '@/lib/date-time';
+import { getSystemTimeZone } from '@/lib/system-timezone-store';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Products({ searchParams }: { searchParams: { q?: string } }) {
   const products = await getCatalog(searchParams.q);
+  const timeZone = await getSystemTimeZone();
   return <div className="page">
     <span className="eyebrow">PRODUCT INFO</span>
     <h1>商品信息</h1>
@@ -24,7 +26,7 @@ export default async function Products({ searchParams }: { searchParams: { q?: s
           <td><strong className="summary-number">{activeSkus}</strong><small>共 {product.skus.length} 个规格</small></td>
           <td><strong className="summary-number">{externalCodes}</strong><small>厂家/仓配等映射</small></td>
           <td><strong className="summary-number">{activeListings}</strong><small>共 {product.listings.length} 个平台关系</small></td>
-          <td><span className={`status-dot ${product.status === 'ACTIVE' ? 'active' : ''}`}>{product.status === 'ACTIVE' ? '使用中' : '已停用'}</span><small>{formatBeijingTime(product.updatedAt)}</small></td>
+          <td><span className={`status-dot ${product.status === 'ACTIVE' ? 'active' : ''}`}>{product.status === 'ACTIVE' ? '使用中' : '已停用'}</span><small>{formatSystemTime(product.updatedAt, timeZone)}</small></td>
           <td><Link className="summary-detail-link" href={`/products/${product.id}`}>查看详情</Link></td>
         </tr>;
       })}</tbody>

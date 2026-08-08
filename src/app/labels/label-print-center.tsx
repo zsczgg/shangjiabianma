@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   IconAdjustmentsHorizontal,
   IconCheck,
+  IconClock,
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
@@ -27,10 +28,13 @@ import {
 } from '@/lib/labels';
 import {
   DEFAULT_LABEL_SETTINGS,
+  DEFAULT_PRINT_TIME_SETTINGS,
   type LabelFieldSettings,
   type LabelPaperSize,
   type LabelSettings,
 } from '@/lib/label-settings';
+import { formatLabelPrintTime } from '@/lib/label-time';
+import { DEFAULT_SYSTEM_TIME_ZONE, type SystemTimeZone } from '@/lib/system-timezone';
 
 const fieldLabels: Array<[keyof LabelFieldSettings, string]> = [
   ['brandName', '品牌标识'],
@@ -42,6 +46,16 @@ const fieldLabels: Array<[keyof LabelFieldSettings, string]> = [
   ['cainiao', '仓配编码'],
   ['platforms', '平台 ID'],
   ['image', '商品图片'],
+  ['time', '打印时间'],
+];
+
+const timePartOptions: Array<[keyof LabelSettings['printTime']['parts'], string]> = [
+  ['year', '年'], ['month', '月'], ['day', '日'], ['hour', '时'], ['minute', '分'], ['second', '秒'],
+];
+
+const timePositionOptions: Array<[LabelSettings['printTime']['position'], string]> = [
+  ['top-left', '顶部左侧'], ['top-center', '顶部居中'], ['top-right', '顶部右侧'],
+  ['bottom-left', '底部左侧'], ['bottom-center', '底部居中'], ['bottom-right', '底部右侧'],
 ];
 
 const paperDimensions: Record<LabelPaperSize, { width: number; height: number; label: string }> = {
@@ -61,6 +75,11 @@ function mergeStoredSettings(parsed: Partial<LabelSettings>) {
     ...parsed,
     noteSource,
     fields: { ...DEFAULT_LABEL_SETTINGS.fields, ...parsed.fields },
+    printTime: {
+      ...DEFAULT_PRINT_TIME_SETTINGS,
+      ...parsed.printTime,
+      parts: { ...DEFAULT_PRINT_TIME_SETTINGS.parts, ...parsed.printTime?.parts },
+    },
     calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
   } satisfies LabelSettings;
 }
@@ -108,6 +127,9 @@ function ProductLabel({
   brandText,
   customNote,
   noteSource,
+  printTime,
+  timestamp,
+  timeZone,
   calibration,
   print = false,
 }: {
@@ -117,6 +139,9 @@ function ProductLabel({
   brandText: string;
   customNote: string;
   noteSource: LabelSettings['noteSource'];
+  printTime: LabelSettings['printTime'];
+  timestamp: string;
+  timeZone: SystemTimeZone;
   calibration: { x: number; y: number };
   print?: boolean;
 }) {
@@ -124,6 +149,7 @@ function ProductLabel({
   const skuCainiao = codeByType(item, 'CAINIAO');
   const cainiao = skuCainiao || item.productCainiaoCode;
   const note = noteSource === 'custom' ? customNote.trim() : noteSource === 'product' ? item.note : null;
+  const timeText = fields.time ? formatLabelPrintTime(timestamp, timeZone, printTime.parts) : '';
 
   return (
     <article
@@ -166,6 +192,7 @@ function ProductLabel({
           <span>{note}</span>
         </div>
       )}
+      {timeText && <time className={`label-print-time ${printTime.position}`} style={{ fontSize: `${printTime.fontSize}mm` }}>{timeText}</time>}
     </article>
   );
 }
@@ -181,6 +208,10 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   const [brandText, setBrandText] = useState(DEFAULT_LABEL_SETTINGS.brandText);
   const [customNote, setCustomNote] = useState(DEFAULT_LABEL_SETTINGS.customNote);
   const [noteSource, setNoteSource] = useState<LabelSettings['noteSource']>(DEFAULT_LABEL_SETTINGS.noteSource);
+  const [printTime, setPrintTime] = useState(DEFAULT_LABEL_SETTINGS.printTime);
+  const [timeZone, setTimeZone] = useState<SystemTimeZone>(DEFAULT_SYSTEM_TIME_ZONE);
+  const [liveTimestamp, setLiveTimestamp] = useState(() => new Date().toISOString());
+  const [printTimestamp, setPrintTimestamp] = useState(() => new Date().toISOString());
   const [calibration, setCalibration] = useState(DEFAULT_LABEL_SETTINGS.calibration);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'loading' | 'saving' | 'saved' | 'error'>('loading');
@@ -217,6 +248,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
         setBrandText(next.brandText);
         setCustomNote(next.customNote);
         setNoteSource(next.noteSource);
+        setPrintTime(next.printTime);
         setFields(next.fields);
         setCalibration(next.calibration);
         setPreferencesLoaded(true);
@@ -227,9 +259,24 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setLiveTimestamp(new Date().toISOString()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    void fetch('/api/system-timezone', { cache: 'no-store' })
+      .then(async response => response.ok ? (await response.json()).timeZone as SystemTimeZone : DEFAULT_SYSTEM_TIME_ZONE)
+      .then(setTimeZone)
+      .catch(() => setTimeZone(DEFAULT_SYSTEM_TIME_ZONE));
+    const handleChange = (event: Event) => setTimeZone((event as CustomEvent<SystemTimeZone>).detail);
+    window.addEventListener('system-timezone-change', handleChange);
+    return () => window.removeEventListener('system-timezone-change', handleChange);
+  }, []);
+
+  useEffect(() => {
     if (!preferencesLoaded) return;
     setSaveStatus('saving');
-    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, noteSource, fields, calibration };
+    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, noteSource, fields, printTime, calibration };
     const timer = window.setTimeout(async () => {
       localStorage.setItem('yyhxfz-label-preferences', JSON.stringify(settings));
       try {
@@ -245,7 +292,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [brandText, calibration, customNote, defaultCopies, fields, noteSource, paper, preferencesLoaded]);
+  }, [brandText, calibration, customNote, defaultCopies, fields, noteSource, paper, preferencesLoaded, printTime]);
 
   const filteredItems = useMemo(() => items.filter(item => labelMatchesQuery(item, query)), [items, query]);
   const queuedItems = useMemo(() => items.filter(item => (quantities[item.skuId] ?? 0) > 0), [items, quantities]);
@@ -311,6 +358,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
     setCalibration(DEFAULT_LABEL_SETTINGS.calibration);
     setCustomNote(DEFAULT_LABEL_SETTINGS.customNote);
     setNoteSource(DEFAULT_LABEL_SETTINGS.noteSource);
+    setPrintTime(DEFAULT_LABEL_SETTINGS.printTime);
   }
 
   function printLabels() {
@@ -320,6 +368,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
     const style = document.createElement('style');
     style.id = 'dynamic-label-page';
     const dimensions = paperDimensions[paper];
+    setPrintTimestamp(new Date().toISOString());
     style.textContent = `@page { size: ${dimensions.width}mm ${dimensions.height}mm; margin: 0; }`;
     document.head.appendChild(style);
     document.documentElement.dataset.labelPrinting = 'true';
@@ -328,7 +377,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
       style.remove();
     };
     window.addEventListener('afterprint', cleanup, { once: true });
-    requestAnimationFrame(() => window.print());
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
   }
 
   if (!items.length) {
@@ -442,7 +491,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <div className="ruler ruler-horizontal"><span>0</span><span>{paperDimensions[paper].width / 2}</span><span>{paperDimensions[paper].width} mm</span></div>
             <div className="ruler ruler-vertical"><span>0</span><span>{paperDimensions[paper].height / 2}</span><span>{paperDimensions[paper].height} mm</span></div>
             {activeItem ? (
-              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} noteSource={noteSource} calibration={calibration} />
+              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} noteSource={noteSource} printTime={printTime} timestamp={liveTimestamp} timeZone={timeZone} calibration={calibration} />
             ) : (
               <div className="preview-placeholder">从左侧选择一个商品规格</div>
             )}
@@ -465,7 +514,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
               const disabled = field === 'image' && !activeItem?.imageUrl;
               return (
                 <label className={disabled ? 'setting-row disabled' : 'setting-row'} key={field}>
-                  <span>{field === 'image' && <IconPhoto />}{label}{disabled && <small>商品未设置图片</small>}</span>
+                  <span>{field === 'image' && <IconPhoto />}{field === 'time' && <IconClock />}{label}{disabled && <small>商品未设置图片</small>}</span>
                   <input
                     type="checkbox"
                     checked={fields[field] && !disabled}
@@ -496,6 +545,20 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             </div>
             {noteSource === 'product' && <p className="product-note-preview">{activeItem?.note ? `当前商品备注：${activeItem.note}` : '当前商品暂无备注'}</p>}
             {noteSource === 'custom' && <><textarea value={customNote} onChange={event => setCustomNote(event.target.value)} placeholder="例如：仓库货位、活动批次" maxLength={60} wrap="soft"/><small>{customNote.length} / 60</small></>}
+          </div>
+          <div className={`settings-section print-time-settings${fields.time ? '' : ' disabled'}`}>
+            <div className="settings-section-title"><span><IconClock /> 打印时间</span></div>
+            <p>按系统设置中的时区显示；打印整批标签时使用同一个时间点。</p>
+            <label>显示内容</label>
+            <div className="time-part-options">
+              {timePartOptions.map(([part, label]) => <label key={part}><input type="checkbox" checked={printTime.parts[part]} disabled={!fields.time} onChange={event => setPrintTime(current => ({ ...current, parts: { ...current.parts, [part]: event.target.checked } }))}/><span>{label}</span></label>)}
+            </div>
+            <label>文字位置</label>
+            <select value={printTime.position} disabled={!fields.time} onChange={event => setPrintTime(current => ({ ...current, position: event.target.value as LabelSettings['printTime']['position'] }))}>
+              {timePositionOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+            </select>
+            <label>文字大小（mm）</label>
+            <input type="number" min="1" max="4" step="0.1" value={printTime.fontSize} disabled={!fields.time} onChange={event => setPrintTime(current => ({ ...current, fontSize: Math.min(4, Math.max(1, Number(event.target.value) || 1)) }))}/>
           </div>
           <div className="settings-section">
             <div className="settings-section-title">
@@ -535,6 +598,9 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             brandText={brandText}
             customNote={customNote}
             noteSource={noteSource}
+            printTime={printTime}
+            timestamp={printTimestamp}
+            timeZone={timeZone}
             calibration={calibration}
             print
           />

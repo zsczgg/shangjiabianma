@@ -36,4 +36,12 @@ describe('label settings', () => {
     };
     expect(labelSettingsSchema.parse(legacy).noteSource).toBe('none');
   });
+
+  it('adds print time defaults to existing saved preferences', () => {
+    const { printTime: _printTime, ...legacy } = DEFAULT_LABEL_SETTINGS;
+    const parsed = labelSettingsSchema.parse({ ...legacy, fields: { ...legacy.fields, time: undefined } });
+    expect(parsed.fields.time).toBe(true);
+    expect(parsed.printTime.position).toBe('bottom-right');
+    expect(parsed.printTime.parts.second).toBe(true);
+  });
 });

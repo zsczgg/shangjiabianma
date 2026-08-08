@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const DEFAULT_PRINT_TIME_SETTINGS = {
+  position: 'bottom-right' as const,
+  fontSize: 1.5,
+  parts: { year: true, month: true, day: true, hour: true, minute: true, second: true },
+};
+
 const labelSettingsObjectSchema = z.object({
   paper: z.enum(['40x30', '70x50', '100x100']),
   defaultCopies: z.number().int().min(1).max(999),
@@ -17,7 +23,16 @@ const labelSettingsObjectSchema = z.object({
     platforms: z.boolean(),
     image: z.boolean(),
     note: z.boolean(),
+    time: z.boolean().default(true),
   }),
+  printTime: z.object({
+    position: z.enum(['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right']),
+    fontSize: z.number().min(1).max(4),
+    parts: z.object({
+      year: z.boolean(), month: z.boolean(), day: z.boolean(),
+      hour: z.boolean(), minute: z.boolean(), second: z.boolean(),
+    }),
+  }).default(DEFAULT_PRINT_TIME_SETTINGS),
   calibration: z.object({
     x: z.number().min(-5).max(5),
     y: z.number().min(-5).max(5),
@@ -25,13 +40,15 @@ const labelSettingsObjectSchema = z.object({
 });
 
 export const labelSettingsSchema = z.preprocess(value => {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || 'noteSource' in value) return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const legacy = value as Record<string, unknown>;
   const fields = legacy.fields as Record<string, unknown> | undefined;
   const customNote = typeof legacy.customNote === 'string' ? legacy.customNote : '';
   return {
     ...legacy,
-    noteSource: fields?.note === false ? 'none' : customNote.trim() ? 'custom' : 'product',
+    noteSource: legacy.noteSource || (fields?.note === false ? 'none' : customNote.trim() ? 'custom' : 'product'),
+    fields: { ...fields, time: typeof fields?.time === 'boolean' ? fields.time : true },
+    printTime: legacy.printTime || DEFAULT_PRINT_TIME_SETTINGS,
   };
 }, labelSettingsObjectSchema);
 
@@ -56,6 +73,8 @@ export const DEFAULT_LABEL_SETTINGS: LabelSettings = {
     platforms: false,
     image: false,
     note: false,
+    time: true,
   },
+  printTime: DEFAULT_PRINT_TIME_SETTINGS,
   calibration: { x: 0, y: 0 },
 };

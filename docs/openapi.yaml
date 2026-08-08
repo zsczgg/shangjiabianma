@@ -136,11 +136,12 @@ components:
         success: { const: true }
         data:
           type: object
-          required: [status, version, time]
+          required: [status, version, time, timeZone]
           properties:
             status: { const: ok }
             version: { const: v1 }
             time: { type: string, format: date-time }
+            timeZone: { type: string, enum: [Asia/Shanghai, Asia/Seoul] }
     Pagination:
       type: object
       required: [page, pageSize, total, totalPages]
