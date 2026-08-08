@@ -44,4 +44,13 @@ describe('label settings', () => {
     expect(parsed.printTime.position).toBe('bottom-right');
     expect(parsed.printTime.parts.second).toBe(true);
   });
+
+  it('adds print sequence defaults to existing saved preferences', () => {
+    const { printSequence: _printSequence, ...withoutSequenceSettings } = DEFAULT_LABEL_SETTINGS;
+    const { sequence: _sequence, ...legacyFields } = withoutSequenceSettings.fields;
+    const parsed = labelSettingsSchema.parse({ ...withoutSequenceSettings, fields: legacyFields });
+    expect(parsed.fields.sequence).toBe(true);
+    expect(parsed.printSequence.position).toBe('bottom-left');
+    expect(parsed.printSequence.fontSize).toBe(1.8);
+  });
 });

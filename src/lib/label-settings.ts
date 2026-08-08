@@ -6,6 +6,11 @@ export const DEFAULT_PRINT_TIME_SETTINGS = {
   parts: { year: true, month: true, day: true, hour: true, minute: true, second: true },
 };
 
+export const DEFAULT_PRINT_SEQUENCE_SETTINGS = {
+  position: 'bottom-left' as const,
+  fontSize: 1.8,
+};
+
 const labelSettingsObjectSchema = z.object({
   paper: z.enum(['40x30', '70x50', '100x100']),
   defaultCopies: z.number().int().min(1).max(999),
@@ -24,6 +29,7 @@ const labelSettingsObjectSchema = z.object({
     image: z.boolean(),
     note: z.boolean(),
     time: z.boolean().default(true),
+    sequence: z.boolean().default(true),
   }),
   printTime: z.object({
     position: z.enum(['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right']),
@@ -33,6 +39,10 @@ const labelSettingsObjectSchema = z.object({
       hour: z.boolean(), minute: z.boolean(), second: z.boolean(),
     }),
   }).default(DEFAULT_PRINT_TIME_SETTINGS),
+  printSequence: z.object({
+    position: z.enum(['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right']),
+    fontSize: z.number().min(1).max(4),
+  }).default(DEFAULT_PRINT_SEQUENCE_SETTINGS),
   calibration: z.object({
     x: z.number().min(-5).max(5),
     y: z.number().min(-5).max(5),
@@ -47,8 +57,13 @@ export const labelSettingsSchema = z.preprocess(value => {
   return {
     ...legacy,
     noteSource: legacy.noteSource || (fields?.note === false ? 'none' : customNote.trim() ? 'custom' : 'product'),
-    fields: { ...fields, time: typeof fields?.time === 'boolean' ? fields.time : true },
+    fields: {
+      ...fields,
+      time: typeof fields?.time === 'boolean' ? fields.time : true,
+      sequence: typeof fields?.sequence === 'boolean' ? fields.sequence : true,
+    },
     printTime: legacy.printTime || DEFAULT_PRINT_TIME_SETTINGS,
+    printSequence: legacy.printSequence || DEFAULT_PRINT_SEQUENCE_SETTINGS,
   };
 }, labelSettingsObjectSchema);
 
@@ -74,7 +89,9 @@ export const DEFAULT_LABEL_SETTINGS: LabelSettings = {
     image: false,
     note: false,
     time: true,
+    sequence: true,
   },
   printTime: DEFAULT_PRINT_TIME_SETTINGS,
+  printSequence: DEFAULT_PRINT_SEQUENCE_SETTINGS,
   calibration: { x: 0, y: 0 },
 };
