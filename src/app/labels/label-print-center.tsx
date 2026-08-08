@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   IconAdjustmentsHorizontal,
   IconCheck,
@@ -28,6 +28,7 @@ import {
 } from '@/lib/labels';
 import {
   DEFAULT_LABEL_SETTINGS,
+  DEFAULT_LABEL_FONT_SIZES,
   DEFAULT_PRINT_SEQUENCE_SETTINGS,
   DEFAULT_PRINT_TIME_SETTINGS,
   type LabelFieldSettings,
@@ -60,6 +61,12 @@ const timePositionOptions: Array<[LabelSettings['printTime']['position'], string
   ['bottom-left', '底部左侧'], ['bottom-center', '底部居中'], ['bottom-right', '底部右侧'],
 ];
 
+const fontSizeOptions: Array<[keyof LabelSettings['fontSizes']['40x30'], string]> = [
+  ['brand', '品牌标识'], ['caption', '栏目小标题'], ['productName', '商品名称'], ['spec', '规格'],
+  ['internalCode', '内部编码'], ['barcodeText', '主条码下方数字'], ['externalCode', '外部编码标题'], ['externalBarcodeText', '外部条码下方数字'], ['note', '备注'],
+  ['time', '打印时间'], ['sequence', '打印序号'],
+];
+
 const paperDimensions: Record<LabelPaperSize, { width: number; height: number; label: string }> = {
   '40x30': { width: 40, height: 30, label: '40 × 30 mm' },
   '70x50': { width: 70, height: 50, label: '70 × 50 mm' },
@@ -83,6 +90,11 @@ function mergeStoredSettings(parsed: Partial<LabelSettings>) {
       parts: { ...DEFAULT_PRINT_TIME_SETTINGS.parts, ...parsed.printTime?.parts },
     },
     printSequence: { ...DEFAULT_PRINT_SEQUENCE_SETTINGS, ...parsed.printSequence },
+    fontSizes: {
+      '40x30': { ...DEFAULT_LABEL_FONT_SIZES['40x30'], ...parsed.fontSizes?.['40x30'] },
+      '70x50': { ...DEFAULT_LABEL_FONT_SIZES['70x50'], ...parsed.fontSizes?.['70x50'] },
+      '100x100': { ...DEFAULT_LABEL_FONT_SIZES['100x100'], ...parsed.fontSizes?.['100x100'] },
+    },
     calibration: { ...DEFAULT_LABEL_SETTINGS.calibration, ...parsed.calibration },
   } satisfies LabelSettings;
 }
@@ -113,12 +125,12 @@ function QuantityControl({
   );
 }
 
-function ExternalBarcode({ label, value }: { label: string; value: string | null }) {
+function ExternalBarcode({ label, value, textSize }: { label: string; value: string | null; textSize: number }) {
   if (!value) return null;
   return (
     <div className="label-external-code">
       <span>{label}</span>
-      <LabelBarcode value={value} compact />
+      <LabelBarcode value={value} compact textSize={textSize} />
     </div>
   );
 }
@@ -132,6 +144,7 @@ function ProductLabel({
   noteSource,
   printTime,
   printSequence,
+  fontSizes,
   copyNumber,
   copyTotal,
   timestamp,
@@ -147,6 +160,7 @@ function ProductLabel({
   noteSource: LabelSettings['noteSource'];
   printTime: LabelSettings['printTime'];
   printSequence: LabelSettings['printSequence'];
+  fontSizes: LabelSettings['fontSizes'][LabelPaperSize];
   copyNumber: number;
   copyTotal: number;
   timestamp: string;
@@ -160,10 +174,18 @@ function ProductLabel({
   const note = noteSource === 'custom' ? customNote.trim() : noteSource === 'product' ? item.note : null;
   const timeText = fields.time ? formatLabelPrintTime(timestamp, timeZone, printTime.parts) : '';
 
+  const labelStyle = {
+    ...(print ? { transform: `translate(${calibration.x}mm, ${calibration.y}mm)` } : {}),
+    '--label-brand-size': `${fontSizes.brand}mm`, '--label-caption-size': `${fontSizes.caption}mm`,
+    '--label-product-size': `${fontSizes.productName}mm`, '--label-spec-size': `${fontSizes.spec}mm`,
+    '--label-internal-code-size': `${fontSizes.internalCode}mm`, '--label-external-code-size': `${fontSizes.externalCode}mm`,
+    '--label-note-size': `${fontSizes.note}mm`,
+  } as CSSProperties;
+
   return (
     <article
       className={`physical-label label-${paper}${print ? ' print-label' : ''}`}
-      style={print ? { transform: `translate(${calibration.x}mm, ${calibration.y}mm)` } : undefined}
+      style={labelStyle}
     >
       {fields.brandName && <><div className="label-brand">{brandText}</div><div className="label-rule" /></>}
       <div className="label-product-row">
@@ -178,17 +200,18 @@ function ProductLabel({
       </div>
       <div className="label-primary-code">
         {fields.internalCodeText && <><span className="label-caption">内部编码</span><strong>{item.internalCode}</strong></>}
-        <LabelBarcode value={item.internalCode} showText={fields.barcodeText} />
+        <LabelBarcode value={item.internalCode} showText={fields.barcodeText} textSize={fontSizes.barcodeText} />
       </div>
       {(fields.manufacturer && manufacturer || fields.cainiao && cainiao || fields.platforms && item.platformCodes.length > 0) && (
         <div className="label-secondary-codes">
-          {fields.manufacturer && <ExternalBarcode label="厂家条码" value={manufacturer} />}
-          {fields.cainiao && <ExternalBarcode label="仓配编码" value={cainiao} />}
+          {fields.manufacturer && <ExternalBarcode label="厂家条码" value={manufacturer} textSize={fontSizes.externalBarcodeText} />}
+          {fields.cainiao && <ExternalBarcode label="仓配编码" value={cainiao} textSize={fontSizes.externalBarcodeText} />}
           {fields.platforms && item.platformCodes.map(code => (
             <ExternalBarcode
               key={`${code.channel}-${code.shop || ''}-${code.value}`}
               label={`${code.channel}${code.shop ? ` · ${code.shop}` : ''}`}
               value={code.value}
+              textSize={fontSizes.externalBarcodeText}
             />
           ))}
         </div>
@@ -201,8 +224,8 @@ function ProductLabel({
           <span>{note}</span>
         </div>
       )}
-      {timeText && <time className={`label-print-time ${printTime.position}`} style={{ fontSize: `${printTime.fontSize}mm` }}>{timeText}</time>}
-      {fields.sequence && copyTotal > 1 && <span className={`label-print-sequence ${printSequence.position}`} style={{ fontSize: `${printSequence.fontSize}mm` }}>{copyNumber}/{copyTotal}</span>}
+      {timeText && <time className={`label-print-time ${printTime.position}`} style={{ fontSize: `${fontSizes.time}mm` }}>{timeText}</time>}
+      {fields.sequence && copyTotal > 1 && <span className={`label-print-sequence ${printSequence.position}`} style={{ fontSize: `${fontSizes.sequence}mm` }}>{copyNumber}/{copyTotal}</span>}
     </article>
   );
 }
@@ -220,6 +243,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   const [noteSource, setNoteSource] = useState<LabelSettings['noteSource']>(DEFAULT_LABEL_SETTINGS.noteSource);
   const [printTime, setPrintTime] = useState(DEFAULT_LABEL_SETTINGS.printTime);
   const [printSequence, setPrintSequence] = useState(DEFAULT_LABEL_SETTINGS.printSequence);
+  const [fontSizes, setFontSizes] = useState(DEFAULT_LABEL_SETTINGS.fontSizes);
   const [timeZone, setTimeZone] = useState<SystemTimeZone>(DEFAULT_SYSTEM_TIME_ZONE);
   const [liveTimestamp, setLiveTimestamp] = useState(() => new Date().toISOString());
   const [printTimestamp, setPrintTimestamp] = useState(() => new Date().toISOString());
@@ -261,6 +285,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
         setNoteSource(next.noteSource);
         setPrintTime(next.printTime);
         setPrintSequence(next.printSequence);
+        setFontSizes(next.fontSizes);
         setFields(next.fields);
         setCalibration(next.calibration);
         setPreferencesLoaded(true);
@@ -288,7 +313,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   useEffect(() => {
     if (!preferencesLoaded) return;
     setSaveStatus('saving');
-    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, noteSource, fields, printTime, printSequence, calibration };
+    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, noteSource, fields, printTime, printSequence, fontSizes, calibration };
     const timer = window.setTimeout(async () => {
       localStorage.setItem('yyhxfz-label-preferences', JSON.stringify(settings));
       try {
@@ -304,7 +329,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [brandText, calibration, customNote, defaultCopies, fields, noteSource, paper, preferencesLoaded, printSequence, printTime]);
+  }, [brandText, calibration, customNote, defaultCopies, fields, fontSizes, noteSource, paper, preferencesLoaded, printSequence, printTime]);
 
   const filteredItems = useMemo(() => items.filter(item => labelMatchesQuery(item, query)), [items, query]);
   const queuedItems = useMemo(() => items.filter(item => (quantities[item.skuId] ?? 0) > 0), [items, quantities]);
@@ -372,6 +397,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
     setNoteSource(DEFAULT_LABEL_SETTINGS.noteSource);
     setPrintTime(DEFAULT_LABEL_SETTINGS.printTime);
     setPrintSequence(DEFAULT_LABEL_SETTINGS.printSequence);
+    setFontSizes(DEFAULT_LABEL_SETTINGS.fontSizes);
   }
 
   function printLabels() {
@@ -504,7 +530,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <div className="ruler ruler-horizontal"><span>0</span><span>{paperDimensions[paper].width / 2}</span><span>{paperDimensions[paper].width} mm</span></div>
             <div className="ruler ruler-vertical"><span>0</span><span>{paperDimensions[paper].height / 2}</span><span>{paperDimensions[paper].height} mm</span></div>
             {activeItem ? (
-              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} noteSource={noteSource} printTime={printTime} printSequence={printSequence} copyNumber={1} copyTotal={quantities[activeItem.skuId] || defaultCopies} timestamp={liveTimestamp} timeZone={timeZone} calibration={calibration} />
+              <ProductLabel item={activeItem} paper={paper} fields={fields} brandText={brandText} customNote={customNote} noteSource={noteSource} printTime={printTime} printSequence={printSequence} fontSizes={fontSizes[paper]} copyNumber={1} copyTotal={quantities[activeItem.skuId] || defaultCopies} timestamp={liveTimestamp} timeZone={timeZone} calibration={calibration} />
             ) : (
               <div className="preview-placeholder">从左侧选择一个商品规格</div>
             )}
@@ -539,6 +565,13 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             })}
           </div>
           <div className="settings-section">
+            <div className="settings-section-title"><span>文字大小 · {paperDimensions[paper].label}</span><button type="button" onClick={() => setFontSizes(current => ({ ...current, [paper]: DEFAULT_LABEL_FONT_SIZES[paper] }))}>恢复当前规格</button></div>
+            <p>只调整当前标签规格，单位为 mm；预览和实际打印同步变化。</p>
+            <div className="font-size-grid">
+              {fontSizeOptions.map(([field, label]) => <label key={field}><span>{label}</span><input type="number" min="0.8" max="10" step="0.1" value={fontSizes[paper][field]} onChange={event => setFontSizes(current => ({ ...current, [paper]: { ...current[paper], [field]: Math.min(10, Math.max(.8, Number(event.target.value) || .8)) } }))}/></label>)}
+            </div>
+          </div>
+          <div className="settings-section">
             <label>品牌标识文字</label>
             <input
               type="text"
@@ -570,8 +603,6 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <select value={printTime.position} disabled={!fields.time} onChange={event => setPrintTime(current => ({ ...current, position: event.target.value as LabelSettings['printTime']['position'] }))}>
               {timePositionOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
             </select>
-            <label>文字大小（mm）</label>
-            <input type="number" min="1" max="4" step="0.1" value={printTime.fontSize} disabled={!fields.time} onChange={event => setPrintTime(current => ({ ...current, fontSize: Math.min(4, Math.max(1, Number(event.target.value) || 1)) }))}/>
           </div>
           <div className={`settings-section print-time-settings${fields.sequence ? '' : ' disabled'}`}>
             <div className="settings-section-title"><span>打印序号</span></div>
@@ -580,8 +611,6 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             <select value={printSequence.position} disabled={!fields.sequence} onChange={event => setPrintSequence(current => ({ ...current, position: event.target.value as LabelSettings['printSequence']['position'] }))}>
               {timePositionOptions.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
             </select>
-            <label>文字大小（mm）</label>
-            <input type="number" min="1" max="4" step="0.1" value={printSequence.fontSize} disabled={!fields.sequence} onChange={event => setPrintSequence(current => ({ ...current, fontSize: Math.min(4, Math.max(1, Number(event.target.value) || 1)) }))}/>
           </div>
           <div className="settings-section">
             <div className="settings-section-title">
@@ -623,6 +652,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
             noteSource={noteSource}
             printTime={printTime}
             printSequence={printSequence}
+            fontSizes={fontSizes[paper]}
             copyNumber={item.copyIndex + 1}
             copyTotal={quantities[item.skuId] || 1}
             timestamp={printTimestamp}

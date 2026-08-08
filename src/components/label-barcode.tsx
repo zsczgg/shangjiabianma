@@ -7,9 +7,10 @@ type Props = {
   value: string;
   compact?: boolean;
   showText?: boolean;
+  textSize?: number;
 };
 
-export default function LabelBarcode({ value, compact = false, showText = true }: Props) {
+export default function LabelBarcode({ value, compact = false, showText = true, textSize }: Props) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -21,12 +22,12 @@ export default function LabelBarcode({ value, compact = false, showText = true }
       height: compact ? 5.5 : 10,
       includetext: showText,
       textxalign: 'center',
-      textsize: compact ? 7 : 9,
+      textsize: textSize ? Math.max(4, Math.round(textSize * 3)) : compact ? 7 : 9,
       paddingwidth: 1,
       paddingheight: 0,
       backgroundcolor: 'FFFFFF',
     });
-  }, [compact, showText, value]);
+  }, [compact, showText, textSize, value]);
 
   if (!value) return null;
   return <canvas className={compact ? 'label-barcode compact' : 'label-barcode'} ref={ref} aria-label={`Code 128：${value}`} />;

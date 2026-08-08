@@ -53,4 +53,12 @@ describe('label settings', () => {
     expect(parsed.printSequence.position).toBe('bottom-left');
     expect(parsed.printSequence.fontSize).toBe(1.8);
   });
+
+  it('adds independent font sizes for every paper to legacy preferences', () => {
+    const { fontSizes: _fontSizes, ...legacy } = DEFAULT_LABEL_SETTINGS;
+    const parsed = labelSettingsSchema.parse(legacy);
+    expect(parsed.fontSizes['40x30'].productName).toBe(2.15);
+    expect(parsed.fontSizes['70x50'].barcodeText).toBe(2);
+    expect(parsed.fontSizes['100x100'].externalBarcodeText).toBe(1.9);
+  });
 });
