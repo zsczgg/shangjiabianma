@@ -4,7 +4,7 @@ import LabelPrintCenter from './label-print-center';
 
 export const dynamic = 'force-dynamic';
 
-export default async function LabelsPage({ searchParams }: { searchParams: { sku?: string } }) {
+export default async function LabelsPage({ searchParams }: { searchParams: { sku?: string; product?: string } }) {
   const products = await prisma.product.findMany({
     where: { status: 'ACTIVE', skus: { some: { status: 'ACTIVE' } } },
     include: {
@@ -48,5 +48,5 @@ export default async function LabelsPage({ searchParams }: { searchParams: { sku
     })),
   );
 
-  return <LabelPrintCenter items={items} initialSkuId={searchParams.sku} />;
+  return <LabelPrintCenter items={items} initialSkuId={searchParams.sku} initialProductId={searchParams.product} />;
 }

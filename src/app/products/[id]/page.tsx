@@ -12,19 +12,21 @@ const CodeCard = ({ label, value }: { label: string; value: string }) => <div cl
 
 export default async function Detail({ params }: { params: { id: string } }) {
   const [product, timeZone] = await Promise.all([
-    prisma.product.findUnique({ where: { id: params.id }, include: { skus: { include: { externalCodes: true } }, listings: true, changes: { orderBy: { createdAt: 'desc' }, take: 30 } } }),
+    prisma.product.findUnique({ where: { id: params.id }, include: { skus: { include: { externalCodes: true }, orderBy: { createdAt: 'asc' } }, listings: true, changes: { orderBy: { createdAt: 'desc' }, take: 30 } } }),
     getSystemTimeZone(),
   ]);
   if (!product) notFound();
   const active = product.status === 'ACTIVE';
   const firstActiveSku = product.skus.find(sku => sku.status === 'ACTIVE');
+  const activeSkus = product.skus.filter(sku => sku.status === 'ACTIVE');
+  const productPrintHref = activeSkus.length === 1 ? `/labels?sku=${activeSkus[0].id}` : `/labels?product=${product.id}`;
 
   return <div className="page">
     <div className="detail-head">
       <div className="detail-product-intro">
         {product.imageUrl && <img className="detail-product-image" src={product.imageUrl} alt={product.name}/>}<div><span className="eyebrow">PRODUCT RECORD</span><h1>{product.name}</h1><p className="sub">{product.brand || '未设置品牌'} · {product.category || '未分类'}</p></div>
       </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Status active={active}/>{active && firstActiveSku && <Link className="scan-btn" href={`/labels?sku=${firstActiveSku.id}`}>打印标签</Link>}<Link className="primary" href={`/products/${product.id}/edit`}>编辑资料</Link></div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><Status active={active}/>{active && firstActiveSku && <Link className="scan-btn" href={productPrintHref}>{activeSkus.length > 1 ? '选择标签规格' : '打印标签'}</Link>}<Link className="primary" href={`/products/${product.id}/edit`}>编辑资料</Link></div>
     </div>
     {!active && <div className="warning">该商品已停用，仅供历史追溯，请勿继续使用或出入库。</div>}
     {product.cainiaoCode && <section className="card form-card" style={{ marginBottom: 18 }}><h2>商品级仓配编码</h2><div className="code-grid"><CodeCard label="仓配编码" value={product.cainiaoCode}/></div></section>}

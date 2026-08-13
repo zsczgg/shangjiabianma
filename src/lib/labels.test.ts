@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyUnifiedQuantity, codeByType, expandPrintableItems, groupLabelItems, labelMatchesQuery, totalLabelCopies, type LabelItem } from './labels';
+import { applyUnifiedQuantity, codeByType, expandPrintableItems, groupLabelItems, labelMatchesQuery, resolveLabelEntry, totalLabelCopies, type LabelItem } from './labels';
 
 const item: LabelItem = {
   skuId: 'sku-1',
@@ -48,5 +48,31 @@ describe('label helpers', () => {
     const groups = groupLabelItems([item, secondSku]);
     expect(groups).toHaveLength(1);
     expect(groups[0].items.map(sku => sku.skuId)).toEqual(['sku-1', 'sku-2']);
+  });
+
+  it('keeps the sidebar entry empty', () => {
+    expect(resolveLabelEntry([item])).toMatchObject({ quantities: {}, activeSkuId: '', notice: null });
+  });
+
+  it('selects only a valid SKU with one copy', () => {
+    expect(resolveLabelEntry([item], 'sku-1')).toMatchObject({ quantities: { 'sku-1': 1 }, activeSkuId: 'sku-1' });
+  });
+
+  it('does not fall back to another item for an invalid SKU', () => {
+    const entry = resolveLabelEntry([item], 'missing');
+    expect(entry.quantities).toEqual({});
+    expect(entry.notice?.tone).toBe('error');
+  });
+
+  it('expands a multi-SKU product without selecting a specification', () => {
+    const secondSku = { ...item, skuId: 'sku-2', spec: 'L', internalCode: 'yyhxfz000129' };
+    const entry = resolveLabelEntry([item, secondSku], undefined, 'product-1');
+    expect(entry.quantities).toEqual({});
+    expect(entry.expandedProductIds).toEqual(['product-1']);
+    expect(entry.notice?.tone).toBe('info');
+  });
+
+  it('selects the sole SKU from a single-SKU product entry', () => {
+    expect(resolveLabelEntry([item], undefined, 'product-1').quantities).toEqual({ 'sku-1': 1 });
   });
 });

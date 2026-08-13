@@ -26,6 +26,51 @@ export type LabelItem = {
 
 export type QueueQuantities = Record<string, number>;
 export type LabelProductGroup = { productId: string; productName: string; brand: string | null; items: LabelItem[] };
+export type LabelEntryState = {
+  quantities: QueueQuantities;
+  activeSkuId: string;
+  expandedProductIds: string[];
+  notice: { tone: 'info' | 'error'; text: string } | null;
+  key: string;
+};
+
+export function resolveLabelEntry(items: LabelItem[], skuId?: string, productId?: string): LabelEntryState {
+  if (skuId) {
+    const item = items.find(candidate => candidate.skuId === skuId);
+    if (!item) return {
+      quantities: {}, activeSkuId: '', expandedProductIds: [],
+      notice: { tone: 'error', text: '该商品规格不存在或已停用，未加入打印队列。' },
+      key: `invalid-sku:${skuId}`,
+    };
+    return {
+      quantities: { [item.skuId]: 1 }, activeSkuId: item.skuId, expandedProductIds: [item.productId], notice: null,
+      key: `sku:${item.skuId}`,
+    };
+  }
+
+  if (productId) {
+    const productItems = items.filter(item => item.productId === productId);
+    if (!productItems.length) return {
+      quantities: {}, activeSkuId: '', expandedProductIds: [],
+      notice: { tone: 'error', text: '该商品不存在、已停用或没有可打印规格。' },
+      key: `invalid-product:${productId}`,
+    };
+    if (productItems.length === 1) {
+      const item = productItems[0];
+      return {
+        quantities: { [item.skuId]: 1 }, activeSkuId: item.skuId, expandedProductIds: [productId], notice: null,
+        key: `product-single:${productId}:${item.skuId}`,
+      };
+    }
+    return {
+      quantities: {}, activeSkuId: '', expandedProductIds: [productId],
+      notice: { tone: 'info', text: '该商品有多个规格，请勾选需要打印的规格。' },
+      key: `product-multi:${productId}`,
+    };
+  }
+
+  return { quantities: {}, activeSkuId: '', expandedProductIds: [], notice: null, key: 'empty' };
+}
 
 export function labelMatchesQuery(item: LabelItem, query: string) {
   const normalized = query.trim().toLocaleLowerCase('zh-CN');

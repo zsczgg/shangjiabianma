@@ -22,6 +22,7 @@ import {
   expandPrintableItems,
   groupLabelItems,
   labelMatchesQuery,
+  resolveLabelEntry,
   totalLabelCopies,
   type LabelItem,
   type QueueQuantities,
@@ -230,13 +231,13 @@ function ProductLabel({
   );
 }
 
-export default function LabelPrintCenter({ items, initialSkuId }: { items: LabelItem[]; initialSkuId?: string }) {
-  const initialItem = items.find(item => item.skuId === initialSkuId) || items[0];
+export default function LabelPrintCenter({ items, initialSkuId, initialProductId }: { items: LabelItem[]; initialSkuId?: string; initialProductId?: string }) {
+  const entry = useMemo(() => resolveLabelEntry(items, initialSkuId, initialProductId), [initialProductId, initialSkuId, items]);
   const [query, setQuery] = useState('');
   const [paper, setPaper] = useState<LabelPaperSize>(DEFAULT_LABEL_SETTINGS.paper);
-  const [defaultCopies, setDefaultCopies] = useState(DEFAULT_LABEL_SETTINGS.defaultCopies);
-  const [quantities, setQuantities] = useState<QueueQuantities>(() => initialItem ? { [initialItem.skuId]: 1 } : {});
-  const [activeSkuId, setActiveSkuId] = useState(initialItem?.skuId || '');
+  const [defaultCopies, setDefaultCopies] = useState(1);
+  const [quantities, setQuantities] = useState<QueueQuantities>(entry.quantities);
+  const [activeSkuId, setActiveSkuId] = useState(entry.activeSkuId);
   const [fields, setFields] = useState<LabelFieldSettings>(DEFAULT_LABEL_SETTINGS.fields);
   const [brandText, setBrandText] = useState(DEFAULT_LABEL_SETTINGS.brandText);
   const [customNote, setCustomNote] = useState(DEFAULT_LABEL_SETTINGS.customNote);
@@ -278,8 +279,6 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
         }
       } finally {
         setPaper(next.paper);
-        setDefaultCopies(next.defaultCopies);
-        setQuantities(current => applyUnifiedQuantity(current, next.defaultCopies));
         setBrandText(next.brandText);
         setCustomNote(next.customNote);
         setNoteSource(next.noteSource);
@@ -313,7 +312,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
   useEffect(() => {
     if (!preferencesLoaded) return;
     setSaveStatus('saving');
-    const settings: LabelSettings = { paper, defaultCopies, brandText, customNote, noteSource, fields, printTime, printSequence, fontSizes, calibration };
+    const settings: LabelSettings = { paper, defaultCopies: 1, brandText, customNote, noteSource, fields, printTime, printSequence, fontSizes, calibration };
     const timer = window.setTimeout(async () => {
       localStorage.setItem('yyhxfz-label-preferences', JSON.stringify(settings));
       try {
@@ -329,16 +328,23 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
       }
     }, 450);
     return () => window.clearTimeout(timer);
-  }, [brandText, calibration, customNote, defaultCopies, fields, fontSizes, noteSource, paper, preferencesLoaded, printSequence, printTime]);
+  }, [brandText, calibration, customNote, fields, fontSizes, noteSource, paper, preferencesLoaded, printSequence, printTime]);
+
+  useEffect(() => {
+    setQuantities(entry.quantities);
+    setActiveSkuId(entry.activeSkuId);
+    setExpandedProducts(new Set(entry.expandedProductIds));
+    setDefaultCopies(1);
+  }, [entry.key]);
 
   const filteredItems = useMemo(() => items.filter(item => labelMatchesQuery(item, query)), [items, query]);
   const queuedItems = useMemo(() => items.filter(item => (quantities[item.skuId] ?? 0) > 0), [items, quantities]);
-  const activeItem = items.find(item => item.skuId === activeSkuId) || queuedItems[0] || filteredItems[0];
+  const activeItem = items.find(item => item.skuId === activeSkuId) || queuedItems[0];
   const activeIndex = activeItem ? queuedItems.findIndex(item => item.skuId === activeItem.skuId) : -1;
   const totalCopies = totalLabelCopies(quantities);
   const printableItems = useMemo(() => expandPrintableItems(items, quantities), [items, quantities]);
   const groupedItems = useMemo(() => groupLabelItems(filteredItems), [filteredItems]);
-  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(() => new Set(initialItem ? [initialItem.productId] : []));
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(() => new Set(entry.expandedProductIds));
 
   function setQuantity(skuId: string, quantity: number) {
     const nextQuantity = clampQuantity(quantity);
@@ -388,8 +394,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
 
   function resetPreferences() {
     setPaper(DEFAULT_LABEL_SETTINGS.paper);
-    setDefaultCopies(DEFAULT_LABEL_SETTINGS.defaultCopies);
-    setQuantities(current => applyUnifiedQuantity(current, DEFAULT_LABEL_SETTINGS.defaultCopies));
+    setDefaultCopies(1);
     setBrandText(DEFAULT_LABEL_SETTINGS.brandText);
     setFields(DEFAULT_LABEL_SETTINGS.fields);
     setCalibration(DEFAULT_LABEL_SETTINGS.calibration);
@@ -463,11 +468,13 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
         </button>
       </div>
 
+      {entry.notice && totalCopies === 0 && <div className={`label-entry-notice ${entry.notice.tone}`}>{entry.notice.text}</div>}
+
       <div className="label-workspace">
         <aside className="label-queue-panel">
           <div className="panel-heading">
             <div><b>批量打印队列</b><span>已选 {queuedItems.length} 个规格</span></div>
-            {totalCopies > 0 && <button type="button" onClick={() => setQuantities({})}>清空</button>}
+            {totalCopies > 0 && <button type="button" onClick={() => { setQuantities({}); setActiveSkuId(''); }}>清空</button>}
           </div>
           <label className="label-search">
             <IconSearch />
@@ -485,7 +492,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
               const allSelected = selectedCount === group.items.length;
               const onlyItem = group.items[0];
               return <div className="label-product-group" key={group.productId}>
-                <div className={`label-spu-row${activeItem?.productId === group.productId ? ' selected' : ''}`} onClick={() => multiSku ? toggleProduct(group.productId) : setActiveSkuId(onlyItem.skuId)}>
+                <div className={`label-spu-row${selectedCount > 0 ? ' selected' : ''}`} onClick={() => multiSku ? toggleProduct(group.productId) : setActiveSkuId(onlyItem.skuId)}>
                   <button type="button" className={`queue-check${selectedCount > 0 ? ' checked' : ''}${selectedCount > 0 && !allSelected ? ' partial' : ''}`} aria-label={allSelected ? `取消选择${group.productName}全部规格` : `选择${group.productName}全部规格`} onClick={event => { event.stopPropagation(); setProductQuantity(group.items, !allSelected); }}>{allSelected && <IconCheck />}{selectedCount > 0 && !allSelected && <span />}</button>
                   <div className="label-product-copy"><b>{group.productName}</b><span>{group.brand || '未设置品牌'} · {group.items.length} 个规格</span>{!multiSku && <code>{onlyItem.spec} · {onlyItem.internalCode}</code>}</div>
                   {multiSku && <button type="button" className="product-expand" aria-label={expanded ? '收起规格' : '展开规格'} onClick={event => { event.stopPropagation(); toggleProduct(group.productId); }}>{expanded ? <IconChevronDown /> : <IconChevronRight />}</button>}
@@ -493,8 +500,7 @@ export default function LabelPrintCenter({ items, initialSkuId }: { items: Label
                 </div>
                 {multiSku && expanded && <div className="label-sku-children">{group.items.map(item => {
                   const quantity = quantities[item.skuId] ?? 0;
-                  const selected = item.skuId === activeItem?.skuId;
-                  return <div className={`label-sku-row${selected ? ' selected' : ''}`} key={item.skuId} onClick={() => setActiveSkuId(item.skuId)}>
+                  return <div className={`label-sku-row${quantity > 0 ? ' selected' : ''}`} key={item.skuId} onClick={() => setActiveSkuId(item.skuId)}>
                     <button type="button" className={`queue-check${quantity > 0 ? ' checked' : ''}`} aria-label={quantity > 0 ? `取消选择${item.spec}` : `选择${item.spec}`} onClick={event => { event.stopPropagation(); setQuantity(item.skuId, quantity > 0 ? 0 : defaultCopies); }}>{quantity > 0 && <IconCheck />}</button>
                     <div className="label-item-copy"><b>{item.spec}</b><code>{item.internalCode}</code></div>
                     {quantity > 0 && <QuantityControl compact value={quantity} onChange={value => setQuantity(item.skuId, value)} />}
